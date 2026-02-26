@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Awucard Notes</title>
+
+<style>
+:root{
+ --bg:#0f1115;--panel:#151821;--panel2:#1b1f2a;
+ --border:#2f3647;--text:#cbd5e1;--muted:#94a3b8;
+ --accent:#2563eb;--hover:#2a3144
+}
+body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text);overflow:hidden}
+
+/* HEADER */
+header{
+ padding:10px 16px;background:var(--panel);
+ border-bottom:1px solid var(--border);
+ display:flex;align-items:center;gap:10px
+}
+.title{display:flex;align-items:center;gap:6px;font-size:18px;font-weight:600}
+.board-dot{width:10px;height:10px;border-radius:50%}
+
+.board-selector{
+ position:relative;display:flex;align-items:center;height:32px;
+ background:var(--panel2);border:1px solid var(--border);
+ border-radius:8px;padding:0 10px;gap:6px;cursor:pointer
+}
+.board-selector:hover{background:#242a39}
+
+.board-dropdown{
+ position:absolute;top:40px;left:0;background:var(--panel2);
+ border:1px solid var(--border);border-radius:10px;
+ padding:6px;display:none;flex-direction:column;
+ min-width:220px;box-shadow:0 12px 32px rgba(0,0,0,.6);z-index:2000
+}
+.board-item{
+ padding:6px 10px;border-radius:6px;font-size:13px;
+ cursor:pointer;display:flex;align-items:center;gap:6px
+}
+.board-item:hover{background:var(--hover)}
+.board-item.active{background:var(--accent);color:#fff}
+
+.board-actions{border-top:1px solid var(--border);margin-top:6px;padding-top:6px}
+.board-actions div{padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer}
+.board-actions div:hover{background:var(--hover)}
+
+.add-btn{
+ height:32px;display:flex;align-items:center;
+ background:var(--accent);border:none;color:#fff;
+ padding:0 12px;border-radius:8px;cursor:pointer;font-size:13px
+}
+.login-btn{background:#5865F2}
+.logout-btn{background:#ef4444}
+
+.user{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.user img{width:22px;height:22px;border-radius:50%}
+
+/* CANVAS */
+.viewport{width:100vw;height:calc(100vh - 52px);overflow:hidden;background:#0b0d12}
+.canvas{position:relative;width:4000px;height:4000px;background:#11131a}
+
+/* NOTE */
+.note{
+ position:absolute;width:260px;min-height:150px;
+ border-radius:12px;padding:10px;background:#1f2937;
+ box-shadow:0 10px 30px rgba(0,0,0,.7);
+ display:flex;flex-direction:column
+}
+.note-header{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;cursor:grab}
+.note-actions{display:flex;gap:6px}
+.delete,.comment-btn{cursor:pointer;opacity:.7}
+.delete:hover,.comment-btn:hover{opacity:1}
+
+.note-body{flex:1;font-size:14px;margin-bottom:8px}
+.note-footer{display:flex;justify-content:space-between;font-size:11px}
+.note-footer input{
+ background:#0f1115;border:1px solid #374151;
+ color:#e5e7eb;border-radius:6px;font-size:11px
+}
+
+.flag{padding:2px 6px;border-radius:999px;background:#374151}
+.overdue{background:#ef4444;color:#fff}
+.today{background:#f59e0b;color:#111}
+.upcoming{background:#10b981;color:#022}
+
+/* COMMENTS */
+.comments{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:none;flex-direction:column;gap:4px}
+.comment{font-size:11px;background:#0f1115;border:1px solid #374151;border-radius:6px;padding:4px}
+.comment-user{font-weight:600;font-size:10px;color:#94a3b8}
+.comment-time{font-size:9px;color:#64748b}
+.comment-input{display:flex;gap:4px;margin-top:4px}
+.comment-input input{
+ flex:1;background:#0f1115;border:1px solid #374151;
+ color:#e5e7eb;border-radius:6px;font-size:11px;padding:2px 4px
+}
+.comment-send{
+ background:#2563eb;border:none;color:#fff;border-radius:6px;
+ padding:2px 6px;font-size:11px;cursor:pointer
+}
+
+/* MODAL */
+.modal-overlay{
+ position:fixed;inset:0;background:rgba(0,0,0,.6);
+ display:none;align-items:center;justify-content:center;z-index:5000
+}
+.modal{
+ background:var(--panel2);border:1px solid var(--border);
+ border-radius:10px;padding:14px;width:280px
+}
+.modal h3{margin:0 0 10px;font-size:14px}
+.modal input{
+ width:100%;background:#0f1115;border:1px solid #374151;
+ color:#e5e7eb;border-radius:6px;padding:6px;font-size:13px
+}
+.modal-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:10px}
+.modal-actions button{
+ border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px
+}
+.modal-ok{background:#2563eb;color:#fff}
+.modal-cancel{background:#374151;color:#e5e7eb}
+</style>
+</head>
+
+<body>
+
+<header>
+<div class="title">
+<span id="headerDot" class="board-dot"></span>
+<span id="boardTitle">Awucard Notes</span>
+</div>
+
+<div class="board-selector" id="boardSelector">
+<span id="selectorDot" class="board-dot"></span>
+<span id="boardName">Awucard</span>
+<span>⚙</span>
+<div class="board-dropdown" id="boardDropdown"></div>
+</div>
+
+<button class="add-btn" id="addBtn">＋</button>
+
+<a href="auth.php" id="loginBtn" class="add-btn login-btn">Login</a>
+<button id="logoutBtn" class="add-btn logout-btn" style="display:none">Logout</button>
+
+<div id="userInfo" class="user"></div>
+</header>
+
+<div class="viewport" id="viewport">
+<div class="canvas" id="canvas"></div>
+</div>
+
+<div id="modalOverlay" class="modal-overlay">
+<div class="modal">
+<h3 id="modalTitle"></h3>
+<input id="modalInput">
+<div class="modal-actions">
+<button class="modal-cancel" id="modalCancel">No</button>
+<button class="modal-ok" id="modalOk">Yes</button>
+</div>
+</div>
+</div>
+
+<script>
+/* ================= AUTH ================= */
+let USER=null,IS_EDITOR=false;
+
+const loginBtn=document.getElementById("loginBtn");
+const logoutBtn=document.getElementById("logoutBtn");
+const userInfo=document.getElementById("userInfo");
+
+async function checkAuth(){
+ try{
+  const r=await fetch("api.php?action=whoami",{credentials:"include",cache:"no-store"});
+  const j=await r.json();
+  USER=j;
+  IS_EDITOR=j.role==="Editor";
+
+  if(j && j.id){
+   loginBtn.style.display="none";
+   logoutBtn.style.display="inline-flex";
+
+   const avatar=j.avatar
+     ? `https://cdn.discordapp.com/avatars/${j.id}/${j.avatar}.png`
+     : `https://cdn.discordapp.com/embed/avatars/0.png`;
+
+   userInfo.innerHTML=`<img src="${avatar}"><span>${j.name}</span><span>• ${j.role}</span>`;
+  }else{
+   loginBtn.style.display="inline-flex";
+   logoutBtn.style.display="none";
+   userInfo.textContent="Not logged in";
+  }
+ }catch(e){
+  userInfo.textContent="Not logged in";
+ }
+}
+checkAuth();
+
+logoutBtn.onclick=async()=>{
+ await fetch("api.php?action=logout",{credentials:"include"});
+ location.reload();
+};
+
+/* ================= MODAL ================= */
+const modalOverlay=document.getElementById("modalOverlay");
+const modalTitle=document.getElementById("modalTitle");
+const modalInput=document.getElementById("modalInput");
+const modalOk=document.getElementById("modalOk");
+const modalCancel=document.getElementById("modalCancel");
+let modalOpen=false;
+
+function openModal(title,value,ok){
+ modalTitle.textContent=title;
+ modalInput.style.display="block";
+ modalInput.value=value||"";
+ modalOverlay.style.display="flex";
+ modalInput.focus();
+ modalOpen=true;
+ modalOk.onclick=()=>{ok(modalInput.value.trim());closeModal();};
+}
+function openConfirm(title,ok){
+ modalTitle.textContent=title;
+ modalInput.style.display="none";
+ modalOverlay.style.display="flex";
+ modalOpen=true;
+ modalOk.onclick=()=>{ok(true);closeModal();};
+}
+function closeModal(){modalOverlay.style.display="none";modalOpen=false;}
+modalCancel.onclick=closeModal;
+
+document.addEventListener("keydown",e=>{
+ if(!modalOpen) return;
+ if(e.key==="Enter"){e.preventDefault();modalOk.click();}
+ if(e.key==="Escape"){e.preventDefault();closeModal();}
+});
+
+/* ================= BOARDS ================= */
+let CURRENT_BOARD="Awucard",BOARD_COLORS={};
+const boardSelector=document.getElementById("boardSelector");
+const boardDropdown=document.getElementById("boardDropdown");
+const boardName=document.getElementById("boardName");
+const boardTitle=document.getElementById("boardTitle");
+const headerDot=document.getElementById("headerDot");
+const selectorDot=document.getElementById("selectorDot");
+
+function setBoardUI(n){
+ const c=BOARD_COLORS[n]||"#3b82f6";
+ headerDot.style.background=c;
+ selectorDot.style.background=c;
+ boardName.textContent=n;
+ boardTitle.textContent=n+" Notes";
+}
+
+function switchBoard(n){
+ CURRENT_BOARD=n;
+ setBoardUI(n);
+ boardDropdown.style.display="none";
+ clearCanvas();
+ fetchNotes();
+}
+
+boardSelector.onclick=e=>{
+ e.stopPropagation();
+ boardDropdown.style.display=
+  boardDropdown.style.display==="flex"?"none":"flex";
+};
+document.addEventListener("click",()=>boardDropdown.style.display="none");
+
+async function loadBoards(){
+ const r=await fetch("api.php?action=boards",{credentials:"include"});
+ const d=await r.json();
+ BOARD_COLORS=d.colors||{};
+ const boards=d.boards||[];
+
+ boardDropdown.innerHTML="";
+ boards.forEach(n=>{
+  const el=document.createElement("div");
+  el.className="board-item";
+  if(n===CURRENT_BOARD) el.classList.add("active");
+  const dot=document.createElement("span");
+  dot.className="board-dot";
+  dot.style.background=BOARD_COLORS[n];
+  el.appendChild(dot);
+  el.appendChild(document.createTextNode(n));
+  el.onclick=()=>switchBoard(n);
+  boardDropdown.appendChild(el);
+ });
+
+ if(IS_EDITOR){
+  const act=document.createElement("div");
+  act.className="board-actions";
+  act.innerHTML=`
+   <div id="newBoard">➕ New board</div>
+   <div id="renameBoard">✏ Rename board</div>
+   <div id="deleteBoard">🗑 Delete board</div>
+  `;
+  boardDropdown.appendChild(act);
+
+  act.querySelector("#newBoard").onclick=()=>{
+   openModal("New board","",async v=>{
+    if(!v) return;
+    await fetch("api.php",{method:"POST",credentials:"include",
+      body:JSON.stringify({action:"createBoard",name:v})});
+    CURRENT_BOARD=v;loadBoards();switchBoard(v);
+   });
+  };
+
+  act.querySelector("#renameBoard").onclick=()=>{
+   if(CURRENT_BOARD==="Awucard") return;
+   openModal("Rename board",CURRENT_BOARD,async v=>{
+    if(!v) return;
+    await fetch("api.php",{method:"POST",credentials:"include",
+      body:JSON.stringify({action:"renameBoard",old:CURRENT_BOARD,new:v})});
+    CURRENT_BOARD=v;loadBoards();switchBoard(v);
+   });
+  };
+
+  act.querySelector("#deleteBoard").onclick=()=>{
+   if(CURRENT_BOARD==="Awucard") return;
+   openConfirm(`Delete board "${CURRENT_BOARD}"?`,async()=>{
+    await fetch("api.php",{method:"POST",credentials:"include",
+      body:JSON.stringify({action:"deleteBoard",name:CURRENT_BOARD})});
+    CURRENT_BOARD="Awucard";loadBoards();switchBoard("Awucard");
+   });
+  };
+ }
+ setBoardUI(CURRENT_BOARD);
+}
+loadBoards();
+
+/* ================= NOTES ================= */
+const canvas=document.getElementById("canvas");
+const viewport=document.getElementById("viewport");
+const addBtn=document.getElementById("addBtn");
+
+let mouseX=0,mouseY=0,zCounter=1;
+let notesMap=new Map();
+let hoveredNote=null;
+let dragState=null;
+
+viewport.addEventListener("pointermove",e=>{
+ mouseX=e.clientX;
+ mouseY=e.clientY;
+});
+
+function isTyping(){
+ const el=document.activeElement;
+ return el && (el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.isContentEditable);
+}
+
+document.addEventListener("keydown",e=>{
+ if(isTyping()||modalOpen) return;
+ if(IS_EDITOR && e.key.toLowerCase()==="n"){e.preventDefault();createNoteAtCursor();}
+ if(IS_EDITOR && e.key==="Delete" && hoveredNote){e.preventDefault();deleteNote(Number(hoveredNote.dataset.id));}
+});
+
+addBtn.onclick=()=>createNoteAtCenter();
+
+function createNoteAtCursor(){
+ const r=canvas.getBoundingClientRect();
+ sendCreate(mouseX-r.left,mouseY-r.top);
+}
+function createNoteAtCenter(){
+ const r=canvas.getBoundingClientRect();
+ sendCreate(viewport.clientWidth/2,viewport.clientHeight/2);
+}
+
+function sendCreate(x,y){
+ fetch(`api.php?board=${CURRENT_BOARD}`,{
+  method:"POST",
+  credentials:"include",
+  body:JSON.stringify({
+   type:"create",
+   note:{id:Date.now(),text:"",deadline:"",left:x+"px",top:y+"px",z:zCounter++}
+  })
+ });
+ fetchNotes();
+}
+
+function createNote(n){
+ const note=document.createElement("div");
+ note.className="note";
+ note.dataset.id=n.id;
+ note.style.left=n.left;
+ note.style.top=n.top;
+ note.style.zIndex=n.z;
+
+ note.innerHTML=`
+  <div class="note-header">
+   <span>#${n.id}</span>
+   <div class="note-actions">
+    ${IS_EDITOR?'<span class="delete">✕</span>':""}
+   </div>
+  </div>
+  <div class="note-body" contenteditable="${IS_EDITOR}">${n.text||""}</div>
+  <div class="note-footer">
+   <input type="date" value="${n.deadline||""}" ${IS_EDITOR?"":"disabled"}>
+   <span class="flag"></span>
+  </div>
+ `;
+
+ const del=note.querySelector(".delete");
+ if(del) del.onclick=()=>deleteNote(n.id);
+
+ note.querySelector(".note-header").onpointerdown=e=>{
+  if(e.target.closest(".delete")) return;
+  startDrag(e,note);
+ };
+
+ note.addEventListener("mouseenter",()=>hoveredNote=note);
+ note.addEventListener("mouseleave",()=>hoveredNote=null);
+
+ return note;
+}
+
+function startDrag(e,note){
+ e.preventDefault();
+ dragState={note,offsetX:e.offsetX,offsetY:e.offsetY};
+ document.addEventListener("pointermove",dragMove);
+ document.addEventListener("pointerup",dragEnd);
+}
+function dragMove(e){
+ if(!dragState) return;
+ const rect=canvas.getBoundingClientRect();
+ dragState.note.style.left=(e.clientX-rect.left-dragState.offsetX)+"px";
+ dragState.note.style.top=(e.clientY-rect.top-dragState.offsetY)+"px";
+}
+function dragEnd(){
+ if(!dragState) return;
+ saveNote(dragState.note);
+ dragState=null;
+ document.removeEventListener("pointermove",dragMove);
+ document.removeEventListener("pointerup",dragEnd);
+}
+
+async function fetchNotes(){
+ const r=await fetch(`api.php?board=${CURRENT_BOARD}`,{credentials:"include"});
+ const data=await r.json();
+ syncNotes(data);
+}
+setInterval(fetchNotes,1000);
+
+function syncNotes(server){
+ const ids=new Set(server.map(n=>n.id));
+ server.forEach(n=>{
+  if(!notesMap.has(n.id)){
+   const el=createNote(n);
+   canvas.appendChild(el);
+   notesMap.set(n.id,el);
+  }
+ });
+ notesMap.forEach((el,id)=>{
+  if(!ids.has(id)){el.remove();notesMap.delete(id);}
+ });
+}
+
+async function saveNote(el){
+ const note={
+  id:Number(el.dataset.id),
+  text:el.querySelector(".note-body").innerText,
+  deadline:el.querySelector("input").value,
+  left:el.style.left,
+  top:el.style.top,
+  z:el.style.zIndex
+ };
+ await fetch(`api.php?board=${CURRENT_BOARD}`,{
+  method:"POST",
+  credentials:"include",
+  body:JSON.stringify({type:"update",note})
+ });
+}
+
+async function deleteNote(id){
+ await fetch(`api.php?board=${CURRENT_BOARD}`,{
+  method:"POST",
+  credentials:"include",
+  body:JSON.stringify({type:"delete",id})
+ });
+ fetchNotes();
+}
+
+function clearCanvas(){
+ notesMap.forEach(n=>n.remove());
+ notesMap.clear();
+}
+
+fetchNotes();
+</script>
+</body>
+</html>
