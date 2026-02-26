@@ -398,14 +398,14 @@ function updateNoteFlag(noteEl){
  const flag=noteEl.querySelector(".flag");
  if(!deadline){
   flag.className="flag";
-  flag.textContent="";
+  flag.textContent="";\n  flag.title="";
   return;
  }
  const today=new Date().toISOString().split("T")[0];
  flag.className="flag";
- if(deadline<today) flag.classList.add("overdue"),flag.textContent="✕";
- else if(deadline===today) flag.classList.add("today"),flag.textContent="●";
- else flag.classList.add("upcoming"),flag.textContent="→";
+ if(deadline<today) flag.classList.add("overdue"),flag.textContent="✕",flag.title="Overdue";
+ else if(deadline===today) flag.classList.add("today"),flag.textContent="●",flag.title="Due today";
+ else flag.classList.add("upcoming"),flag.textContent="→",flag.title="Upcoming deadline";
 }
 
 function createNote(n){
