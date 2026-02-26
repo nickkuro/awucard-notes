@@ -167,6 +167,8 @@ let USER=null,IS_EDITOR=false;
 const loginBtn=document.getElementById("loginBtn");
 const logoutBtn=document.getElementById("logoutBtn");
 const userInfo=document.getElementById("userInfo");
+// add button needs to be available early for auth UI updates
+const addBtn=document.getElementById("addBtn");
 
 async function checkAuth(){
  try{
@@ -334,7 +336,6 @@ loadBoards();
 /* ================= NOTES ================= */
 const canvas=document.getElementById("canvas");
 const viewport=document.getElementById("viewport");
-const addBtn=document.getElementById("addBtn");
 
 let mouseX=0,mouseY=0,zCounter=1;
 let notesMap=new Map();
@@ -361,27 +362,34 @@ addBtn.onclick=()=>createNoteAtCenter();
 
 function createNoteAtCursor(){
  const r=canvas.getBoundingClientRect();
+ console.log("createNoteAtCursor", mouseX, mouseY, r.left, r.top);
  sendCreate(mouseX-r.left,mouseY-r.top);
 }
 function createNoteAtCenter(){
  const r=canvas.getBoundingClientRect();
+ console.log("createNoteAtCenter", viewport.clientWidth, viewport.clientHeight, r.left, r.top);
  sendCreate(viewport.clientWidth/2,viewport.clientHeight/2);
 }
 
 async function sendCreate(x,y){
+ console.log("sendCreate called",x,y); 
  const note={id:Date.now(),text:"",deadline:"",left:x+"px",top:y+"px",z:zCounter++};
  // show immediately
  syncNotes([note]);
-
- await fetch(`api.php?board=${CURRENT_BOARD}`,{
-  method:"POST",
-  credentials:"include",
-  headers:{"Content-Type":"application/json"},
-  body:JSON.stringify({
-   type:"create",
-   note
-  })
- });
+ try{
+   const resp=await fetch(`api.php?board=${CURRENT_BOARD}`,{
+    method:"POST",
+    credentials:"include",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+     type:"create",
+     note
+    })
+   });
+   console.log("create response status",resp.status);
+ }catch(e){
+   console.error("create request failed",e);
+ }
  await fetchNotes();
 }
 
