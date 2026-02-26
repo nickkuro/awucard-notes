@@ -196,9 +196,14 @@ if($_SERVER["REQUEST_METHOD"]==="GET"){
 
 $data=json_decode(file_get_contents("php://input"),true);
 
-// debug: log session and role
-error_log("[api] session=".json_encode($_SESSION));
-error_log("[api] role=".user_role());
+// debug: log session, role and input to data/debug.log
+$dbg = sprintf("[%s] session=%s role=%s data=%s\n",
+    date('c'),
+    json_encode($_SESSION),
+    user_role(),
+    json_encode($data)
+);
+file_put_contents(__DIR__ . "/data/debug.log", $dbg, FILE_APPEND);
 
 $notes=file_exists($file)
     ? json_decode(file_get_contents($file),true)
