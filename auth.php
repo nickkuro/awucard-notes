@@ -44,10 +44,14 @@ curl_setopt_array($ch,[
     ]
 ]);
 
-$res=json_decode(curl_exec($ch),true);
+$raw = curl_exec($ch);
+$res=json_decode($raw,true);
 $access=$res["access_token"]??null;
 
 if(!$access){
+    // log failure to data/debug.log if writable
+    $msg = "[auth] token exchange failed: " . ($raw ?: 'no response') . "\n";
+    @file_put_contents(__DIR__ . "/data/debug.log", $msg, FILE_APPEND);
     echo "OAuth failed";
     exit;
 }
