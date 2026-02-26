@@ -393,6 +393,21 @@ async function sendCreate(x,y){
  await fetchNotes();
 }
 
+function updateNoteFlag(noteEl){
+ const deadline=noteEl.querySelector("input").value;
+ const flag=noteEl.querySelector(".flag");
+ if(!deadline){
+  flag.className="flag";
+  flag.textContent="";
+  return;
+ }
+ const today=new Date().toISOString().split("T")[0];
+ flag.className="flag";
+ if(deadline<today) flag.classList.add("overdue"),flag.textContent="✕";
+ else if(deadline===today) flag.classList.add("today"),flag.textContent="●";
+ else flag.classList.add("upcoming"),flag.textContent="→";
+}
+
 function createNote(n){
  const note=document.createElement("div");
  note.className="note";
@@ -423,8 +438,16 @@ function createNote(n){
   startDrag(e,note);
  };
 
+ const dateInput=note.querySelector("input");
+ dateInput.addEventListener("change",()=>{
+  updateNoteFlag(note);
+  saveNote(note);
+ });
+
  note.addEventListener("mouseenter",()=>hoveredNote=note);
  note.addEventListener("mouseleave",()=>hoveredNote=null);
+
+ updateNoteFlag(note);
 
  return note;
 }
