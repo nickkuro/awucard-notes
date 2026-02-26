@@ -369,12 +369,17 @@ function createNoteAtCenter(){
 }
 
 async function sendCreate(x,y){
+ const note={id:Date.now(),text:"",deadline:"",left:x+"px",top:y+"px",z:zCounter++};
+ // show immediately
+ syncNotes([note]);
+
  await fetch(`api.php?board=${CURRENT_BOARD}`,{
   method:"POST",
   credentials:"include",
+  headers:{"Content-Type":"application/json"},
   body:JSON.stringify({
    type:"create",
-   note:{id:Date.now(),text:"",deadline:"",left:x+"px",top:y+"px",z:zCounter++}
+   note
   })
  });
  await fetchNotes();
