@@ -178,6 +178,8 @@ async function checkAuth(){
   if(j && j.id){
    loginBtn.style.display="none";
    logoutBtn.style.display="inline-flex";
+   addBtn.disabled=false;
+   addBtn.style.opacity="1";
 
    const avatar=j.avatar
      ? `https://cdn.discordapp.com/avatars/${j.id}/${j.avatar}.png`
@@ -188,6 +190,8 @@ async function checkAuth(){
    loginBtn.style.display="inline-flex";
    logoutBtn.style.display="none";
    userInfo.textContent="Not logged in";
+   addBtn.disabled=true;
+   addBtn.style.opacity="0.5";
   }
  }catch(e){
   userInfo.textContent="Not logged in";
@@ -364,8 +368,8 @@ function createNoteAtCenter(){
  sendCreate(viewport.clientWidth/2,viewport.clientHeight/2);
 }
 
-function sendCreate(x,y){
- fetch(`api.php?board=${CURRENT_BOARD}`,{
+async function sendCreate(x,y){
+ await fetch(`api.php?board=${CURRENT_BOARD}`,{
   method:"POST",
   credentials:"include",
   body:JSON.stringify({
@@ -373,7 +377,7 @@ function sendCreate(x,y){
    note:{id:Date.now(),text:"",deadline:"",left:x+"px",top:y+"px",z:zCounter++}
   })
  });
- fetchNotes();
+ await fetchNotes();
 }
 
 function createNote(n){
