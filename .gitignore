@@ -1,4 +1,5 @@
-config.php
+.env
+.env.local
 data/
 *.log
 *.json

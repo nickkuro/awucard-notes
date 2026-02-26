@@ -1,9 +1,19 @@
 <?php
 session_start();
 
-$client_id = "1473995274035794011";
-$client_secret = "lFucWyVEr2q1X3Ogu6jG7VbHM0aZrnYI";
-$redirect_uri = "https://notes.awucard.me/auth.php";
+// Load .env file if it exists (for local development)
+if (file_exists(__DIR__ . "/.env")) {
+    $env = parse_ini_file(__DIR__ . "/.env");
+    foreach ($env as $key => $value) {
+        if (!getenv($key)) {
+            putenv("$key=$value");
+        }
+    }
+}
+
+$client_id = getenv("DISCORD_CLIENT_ID") ?: "1473995274035794011";
+$client_secret = getenv("DISCORD_CLIENT_SECRET") ?: "lFucWyVEr2q1X3Ogu6jG7VbHM0aZrnYI";
+$redirect_uri = getenv("DISCORD_REDIRECT_URI") ?: "https://notes.awucard.me/auth.php";
 
 if (!isset($_GET["code"])) {
 
