@@ -232,52 +232,63 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .editor-statusrow { display: flex; align-items: center; justify-content: space-between; }
 .status-line { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); }
 
-/* --- split body: textarea left, preview right --- */
+/* --- single pane live editor --- */
 .editor-body {
-  flex: 1; display: flex; overflow: hidden;
+  flex: 1; position: relative; overflow: hidden;
 }
-.editor-write {
-  flex: 1; display: flex; flex-direction: column; min-width: 0;
-  border-right: 1px solid var(--border);
-  padding: 18px 22px 30px;
-  overflow-y: auto;
+/* The textarea and rendered div share the same space */
+.editor-pane {
+  position: absolute; inset: 0;
+  padding: 20px 28px 40px; overflow-y: auto;
 }
 .body-textarea {
-  flex: 1; width: 100%; resize: none;
-  font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; line-height: 1.75;
-  min-height: 100%; background: transparent;
+  width: 100%; height: 100%; min-height: 100%;
+  resize: none; background: transparent;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; line-height: 1.8;
+  display: block;
 }
 .body-textarea::placeholder { color: var(--ink-dim); }
 
-.editor-preview {
-  flex: 1; min-width: 0; padding: 18px 26px 30px;
-  overflow-y: auto;
+/* Rendered output — shown when user pauses typing */
+.editor-rendered {
+  display: none;
+  min-height: 100%;
+  cursor: text;
 }
-.preview-content { font-size: 15px; line-height: 1.75; }
-.preview-content h1, .preview-content h2, .preview-content h3 { font-family: 'IBM Plex Mono', monospace; margin-top: 1.3em; margin-bottom: 0.4em; }
-.preview-content h1 { font-size: 1.5em; }
-.preview-content h2 { font-size: 1.2em; }
-.preview-content h3 { font-size: 1em; }
-.preview-content p { margin-bottom: 0.8em; }
-.preview-content code { font-family: 'IBM Plex Mono', monospace; background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; font-size: 0.87em; }
-.preview-content pre { background: var(--surface); border: 1px solid var(--border); padding: 12px 14px; border-radius: 6px; overflow-x: auto; margin-bottom: 1em; }
-.preview-content pre code { background: none; border: none; padding: 0; }
-.preview-content blockquote { border-left: 3px solid var(--accent); margin: 0.8em 0; padding: 2px 0 2px 14px; color: var(--ink-mid); }
-.preview-content a { color: var(--teal); }
-.preview-content ul, .preview-content ol { padding-left: 20px; margin-bottom: 0.8em; }
-.preview-content li { margin-bottom: 0.2em; }
-.preview-content hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
-.preview-content table { border-collapse: collapse; width: 100%; margin-bottom: 1em; font-size: 0.93em; }
-.preview-content th, .preview-content td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
-.preview-content th { background: var(--surface); font-weight: 600; }
-.preview-label {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
-  color: var(--ink-dim); margin-bottom: 14px; text-transform: uppercase;
+.editor-rendered.visible { display: block; }
+
+/* Shared prose styles for the rendered output */
+.editor-rendered { font-size: 15px; line-height: 1.8; }
+.editor-rendered h1, .editor-rendered h2, .editor-rendered h3 {
+  font-family: 'IBM Plex Mono', monospace; margin-top: 1.3em; margin-bottom: 0.4em;
 }
-.write-label {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
-  color: var(--ink-dim); margin-bottom: 14px; text-transform: uppercase;
+.editor-rendered h1 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+.editor-rendered h2 { font-size: 1.2em; }
+.editor-rendered h3 { font-size: 1em; color: var(--ink-mid); }
+.editor-rendered p { margin-bottom: 0.85em; }
+.editor-rendered strong { font-weight: 600; }
+.editor-rendered em { font-style: italic; color: var(--ink-mid); }
+.editor-rendered code {
+  font-family: 'IBM Plex Mono', monospace; background: var(--surface);
+  border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; font-size: 0.87em;
 }
+.editor-rendered pre {
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin-bottom: 1em;
+}
+.editor-rendered pre code { background: none; border: none; padding: 0; }
+.editor-rendered blockquote {
+  border-left: 3px solid var(--accent); margin: 0.9em 0;
+  padding: 2px 0 2px 16px; color: var(--ink-mid);
+}
+.editor-rendered a { color: var(--teal); }
+.editor-rendered ul, .editor-rendered ol { padding-left: 22px; margin-bottom: 0.85em; }
+.editor-rendered li { margin-bottom: 0.25em; }
+.editor-rendered hr { border: none; border-top: 1px solid var(--border); margin: 1.4em 0; }
+.editor-rendered table { border-collapse: collapse; width: 100%; margin-bottom: 1em; font-size: 0.93em; }
+.editor-rendered th, .editor-rendered td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.editor-rendered th { background: var(--surface); font-weight: 600; }
+.editor-rendered img { max-width: 100%; border-radius: 4px; }
 
 /* ===================== OVERLAYS ===================== */
 .overlay-bg {
