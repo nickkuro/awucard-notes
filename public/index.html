@@ -936,7 +936,7 @@ function renderEditor() {
     note.body=ta.value; note.updatedAt=Date.now();
     scheduleSave(note); renderList(); renderStatus();
     clearTimeout(renderTimer);
-    renderTimer=setTimeout(showRendered, 400);
+    renderTimer=setTimeout(showRendered, 1500);
   });
 
   // Click rendered area → back to editing
