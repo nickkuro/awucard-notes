@@ -7,8 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/16.3.0/lib/marked.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.7/purify.min.js"></script>
+
 <style>
 :root[data-theme="dark"] {
   --bg: #14181c; --surface: #1b2126; --surface-hi: #222a30; --border: #2b333a;
@@ -104,14 +103,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 .char-dropdown-inner { max-height: 260px; overflow-y: auto; }
 .char-option {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; font-size: 13px; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; font-size: 13px; width: 100%; text-align: left;
+  min-width: 0;
 }
 .char-option:hover { background: var(--surface); }
 .char-option.active { background: rgba(232,163,61,0.08); }
-.char-option .char-dot { width: 9px; height: 9px; }
-.char-option-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.char-option-actions { display: flex; gap: 2px; opacity: 0; }
+.char-option .char-dot { width: 9px; height: 9px; flex-shrink: 0; }
+.char-option-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.char-option-actions { display: flex; gap: 1px; flex-shrink: 0; opacity: 0; }
 .char-option:hover .char-option-actions { opacity: 1; }
 .char-action-btn {
   width: 22px; height: 22px; border-radius: 4px; display: flex;
@@ -188,7 +188,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
 /* --- settings menu --- */
 .settings-menu {
-  position: absolute; bottom: 38px; right: 0;
+  position: absolute; top: calc(100% + 6px); right: 0;
   background: var(--surface-hi); border: 1px solid var(--border);
   border-radius: 7px; box-shadow: 0 6px 20px var(--shadow);
   min-width: 160px; z-index: 50; overflow: hidden;
@@ -232,63 +232,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .editor-statusrow { display: flex; align-items: center; justify-content: space-between; }
 .status-line { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); }
 
-/* --- single pane live editor --- */
+/* --- editor body --- */
 .editor-body {
-  flex: 1; position: relative; overflow: hidden;
-}
-/* The textarea and rendered div share the same space */
-.editor-pane {
-  position: absolute; inset: 0;
-  padding: 20px 28px 40px; overflow-y: auto;
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  padding: 18px 28px 30px;
 }
 .body-textarea {
-  width: 100%; height: 100%; min-height: 100%;
-  resize: none; background: transparent;
+  flex: 1; width: 100%; resize: none; background: transparent;
   font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; line-height: 1.8;
-  display: block;
 }
 .body-textarea::placeholder { color: var(--ink-dim); }
-
-/* Rendered output — shown when user pauses typing */
-.editor-rendered {
-  display: none;
-  min-height: 100%;
-  cursor: text;
-}
-.editor-rendered.visible { display: block; }
-
-/* Shared prose styles for the rendered output */
-.editor-rendered { font-size: 15px; line-height: 1.8; }
-.editor-rendered h1, .editor-rendered h2, .editor-rendered h3 {
-  font-family: 'IBM Plex Mono', monospace; margin-top: 1.3em; margin-bottom: 0.4em;
-}
-.editor-rendered h1 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-.editor-rendered h2 { font-size: 1.2em; }
-.editor-rendered h3 { font-size: 1em; color: var(--ink-mid); }
-.editor-rendered p { margin-bottom: 0.85em; }
-.editor-rendered strong { font-weight: 600; }
-.editor-rendered em { font-style: italic; color: var(--ink-mid); }
-.editor-rendered code {
-  font-family: 'IBM Plex Mono', monospace; background: var(--surface);
-  border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; font-size: 0.87em;
-}
-.editor-rendered pre {
-  background: var(--surface); border: 1px solid var(--border);
-  padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin-bottom: 1em;
-}
-.editor-rendered pre code { background: none; border: none; padding: 0; }
-.editor-rendered blockquote {
-  border-left: 3px solid var(--accent); margin: 0.9em 0;
-  padding: 2px 0 2px 16px; color: var(--ink-mid);
-}
-.editor-rendered a { color: var(--teal); }
-.editor-rendered ul, .editor-rendered ol { padding-left: 22px; margin-bottom: 0.85em; }
-.editor-rendered li { margin-bottom: 0.25em; }
-.editor-rendered hr { border: none; border-top: 1px solid var(--border); margin: 1.4em 0; }
-.editor-rendered table { border-collapse: collapse; width: 100%; margin-bottom: 1em; font-size: 0.93em; }
-.editor-rendered th, .editor-rendered td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
-.editor-rendered th { background: var(--surface); font-weight: 600; }
-.editor-rendered img { max-width: 100%; border-radius: 4px; }
 
 /* ===================== OVERLAYS ===================== */
 .overlay-bg {
@@ -343,9 +296,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .app.show-editor .sidebar { display: none; }
   .back-btn { display: flex !important; }
   .editor-head { padding: 12px 16px 8px; }
-  .editor-body { flex-direction: column; }
-  .editor-write { border-right: none; border-bottom: 1px solid var(--border); flex: 0 0 40vh; }
-  .editor-preview { flex: 1; }
+  .editor-body { padding: 14px 18px 24px; }
 }
 </style>
 </head>
@@ -508,10 +459,6 @@ function snippet(body) {
   return s.length>85?s.slice(0,85)+"…":s;
 }
 function wc(body) { var t=(body||"").trim(); return t?t.split(/\s+/).length:0; }
-function renderMd(body) {
-  if(!body||!body.trim()) return "";
-  return DOMPurify.sanitize(marked.parse(body));
-}
 function showToast(msg) {
   var t=document.getElementById("toast");
   t.textContent=msg; t.classList.remove("hidden");
@@ -897,22 +844,12 @@ function renderEditor() {
         '<input class="tag-input" id="tagInput" placeholder="+ tag" />'+
       '</div>'+
       '<div class="editor-statusrow">'+
-        '<div class="status-line" id="statusLine">'+wc(note.body)+' words'+
-          (statusText?' · '+statusText:'')+
+        '<div class="status-line" id="statusLine">'+wc(note.body)+' words'+(statusText?' · '+statusText:'')+
         '</div>'+
       '</div>'+
     '</div>'+
     '<div class="editor-body">'+
-      '<div class="editor-write">'+
-        '<div class="write-label">MARKDOWN</div>'+
-        '<textarea class="body-textarea" id="bodyTextarea" placeholder="Start writing…">'+esc(note.body)+'</textarea>'+
-      '</div>'+
-      '<div class="editor-preview">'+
-        '<div class="preview-label">PREVIEW</div>'+
-        '<div class="preview-content" id="previewContent">'+
-          (renderMd(note.body)||'<span style="color:var(--ink-dim);font-style:italic">Preview appears here as you type.</span>')+
-        '</div>'+
-      '</div>'+
+      '<textarea class="body-textarea" id="bodyTextarea" placeholder="Start writing…">'+esc(note.body)+'</textarea>'+
     '</div>';
 
   // wire events
@@ -929,11 +866,7 @@ function renderEditor() {
   var ta=document.getElementById("bodyTextarea");
   ta.addEventListener("input",function(){
     note.body=ta.value; note.updatedAt=Date.now();
-    scheduleSave(note);
-    renderList();
-    // live preview
-    var preview=document.getElementById("previewContent");
-    if(preview) preview.innerHTML=renderMd(note.body)||'<span style="color:var(--ink-dim);font-style:italic">Preview appears here as you type.</span>';
+    scheduleSave(note); renderList();
   });
 
   document.getElementById("deleteBtn").addEventListener("click",function(){
