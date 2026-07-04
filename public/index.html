@@ -311,6 +311,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .body-rendered table { border-collapse: collapse; width: 100%; margin-bottom: 1em; font-size: 0.93em; }
 .body-rendered th, .body-rendered td { border: 1px solid var(--border); padding: 6px 10px; }
 .body-rendered th { background: var(--surface); font-weight: 600; }
+.body-rendered img {
+  max-width: 100%; border-radius: 6px; display: block;
+  margin: 0.8em 0; border: 1px solid var(--border);
+}
+.img-discord-warn {
+  display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
+  background: rgba(201,96,90,0.08); border: 1px solid rgba(201,96,90,0.35);
+  border-left: 3px solid var(--danger); border-radius: 6px;
+  padding: 10px 13px; margin: 0.8em 0; font-size: 13px;
+  color: var(--ink-mid); line-height: 1.5;
+}
+.img-discord-warn .warn-icon { flex-shrink: 0; }
+.img-discord-warn span { flex: 1; min-width: 0; }
+.img-discord-warn a {
+  color: var(--danger); font-size: 12px; white-space: nowrap;
+  text-decoration: underline; align-self: center;
+}
 
 /* ===================== OVERLAYS ===================== */
 .overlay-bg {
@@ -582,6 +599,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
           <div class="info-item-body">Write in plain text or Markdown. Notes auto-save as you type. After a short pause, the text renders formatted — click it to go back to editing.</div>
         </div>
         <div class="info-item">
+          <div class="info-item-title">Images</div>
+          <div class="info-item-body">Embed images using Markdown: <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">![description](https://url-to-image.com/img.png)</code>. Discord CDN links are blocked with a warning since they expire after ~2 weeks — use a permanent host like Imgur instead.</div>
+        </div>
+        <div class="info-item">
           <div class="info-item-title">Tags</div>
           <div class="info-item-body">Add tags to notes from the editor. Tags appear in the sidebar as filters you can click to narrow the list.</div>
         </div>
@@ -606,6 +627,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v0.8</div>
+          <div class="cl-items">
+            <div class="cl-item new">Image embedding — use <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">![alt](url)</code> in notes and images render inline in the preview</div>
+            <div class="cl-item fix">Discord CDN links (cdn.discordapp.com) are blocked with a warning — these expire after ~2 weeks</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v0.7.2</div>
           <div class="cl-items">
@@ -1194,9 +1222,31 @@ function renderEditor() {
   var renderedDiv=document.getElementById("bodyRendered");
   var renderTimer=null;
 
+  var DISCORD_CDN = /cdn\.discordapp\.com|media\.discordapp\.com/i;
+
   function renderMd(body) {
     if(!body||!body.trim()) return "";
-    return DOMPurify.sanitize(marked.parse(body));
+    var html = DOMPurify.sanitize(marked.parse(body), {
+      ADD_TAGS: ["img"],
+      ADD_ATTR: ["src","alt","title","width","height"]
+    });
+    // Post-process: swap Discord CDN images for a warning
+    var tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    tmp.querySelectorAll("img").forEach(function(img){
+      var src = img.getAttribute("src")||"";
+      if(DISCORD_CDN.test(src)){
+        var warn = document.createElement("div");
+        warn.className = "img-discord-warn";
+        warn.innerHTML =
+          "<span class='warn-icon'>⚠️</span>"+
+          "<span>Discord image links expire after ~2 weeks and may stop working. "+
+          "Re-upload to a permanent host like Imgur.</span>"+
+          "<a href='"+src.replace(/'/g,"%27")+"' target='_blank' rel='noopener noreferrer'>Open link ↗</a>";
+        img.parentNode.replaceChild(warn, img);
+      }
+    });
+    return tmp.innerHTML;
   }
 
   function showRendered() {
