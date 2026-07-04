@@ -350,6 +350,65 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .hidden { display: none !important; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* sidebar footer */
+.sidebar-footer { margin-top: 8px; text-align: center; }
+.sidebar-footer button {
+  font-size: 10px; color: var(--ink-dim); font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em; padding: 4px;
+}
+.sidebar-footer button:hover { color: var(--ink-mid); }
+
+/* info modal */
+.info-modal {
+  max-width: 480px; width: 95%; max-height: 80vh;
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+}
+.info-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.info-tab {
+  flex: 1; padding: 12px; font-size: 13px; font-weight: 500;
+  color: var(--ink-mid); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.info-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.info-tab:hover:not(.active) { color: var(--ink); }
+.info-panel { flex: 1; overflow-y: auto; padding: 18px 20px 4px; }
+.info-modal .modal-actions { padding: 12px 20px 14px; flex-shrink: 0; border-top: 1px solid var(--border); }
+.info-logo {
+  font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600;
+  color: var(--accent); letter-spacing: 0.12em; margin-bottom: 8px;
+}
+.info-sub { font-size: 13px; color: var(--ink-mid); line-height: 1.6; margin-bottom: 18px; }
+.info-section { margin-bottom: 20px; }
+.info-heading {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;
+  color: var(--ink-dim); text-transform: uppercase;
+  margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.info-item { margin-bottom: 10px; }
+.info-item-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.info-item-body { font-size: 12.5px; color: var(--ink-mid); line-height: 1.6; }
+.info-credit {
+  font-size: 11px; color: var(--ink-dim); text-align: center;
+  padding: 10px 0 4px; font-family: 'IBM Plex Mono', monospace;
+}
+/* changelog */
+.changelog { display: flex; flex-direction: column; gap: 18px; }
+.cl-entry { display: flex; gap: 14px; }
+.cl-version {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+  color: var(--accent); min-width: 30px; padding-top: 2px;
+}
+.cl-items { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.cl-item {
+  font-size: 12.5px; color: var(--ink-mid); line-height: 1.5;
+  padding-left: 14px; position: relative;
+}
+.cl-item::before {
+  content: ""; position: absolute; left: 0; top: 7px;
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.cl-item.new::before { background: var(--teal); }
+.cl-item.fix::before { background: var(--amber); }
+
 /* ===================== MOBILE ===================== */
 @media (max-width: 820px) {
   .app { position: relative; overflow: hidden; }
@@ -438,6 +497,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
     <div class="sidebar-bottom">
       <div class="user-row" id="userRow"></div>
       <button class="new-note-btn" id="newNoteBtn">+ New note</button>
+      <div class="sidebar-footer">
+        <button id="infoBtn">Created with AI assistance</button>
+      </div>
     </div>
   </aside>
 
@@ -473,6 +535,117 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
     <div class="modal-actions">
       <button class="btn-cancel" id="charEditCancel">Cancel</button>
       <button class="btn-primary" id="charEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- INFO MODAL (About + Changelog) -->
+<div class="overlay-bg hidden" id="infoOverlay">
+  <div class="modal info-modal">
+    <div class="info-tabs">
+      <button class="info-tab active" data-tab="about">About</button>
+      <button class="info-tab" data-tab="changelog">Changelog</button>
+    </div>
+
+    <div class="info-panel" id="tab-about">
+      <div class="info-section">
+        <div class="info-logo">¶ LEDGER</div>
+        <p class="info-sub">A private note-keeping app for characters and stories, built with Discord login so your group can each have their own space.</p>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">How it works</div>
+        <div class="info-item">
+          <div class="info-item-title">Login</div>
+          <div class="info-item-body">You sign in with Discord. The app asks Discord who you are, then creates a personal space just for your account. No passwords stored.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Characters</div>
+          <div class="info-item-body">Create named characters with a color. Each character gets their own set of notes. Switch between them using the selector at the top of the sidebar. "All notes" shows everything grouped by character.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Notes</div>
+          <div class="info-item-body">Write in plain text or Markdown. Notes auto-save as you type. After a short pause, the text renders formatted — click it to go back to editing.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Tags</div>
+          <div class="info-item-body">Add tags to notes from the editor. Tags appear in the sidebar as filters you can click to narrow the list.</div>
+        </div>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">What's stored</div>
+        <div class="info-item">
+          <div class="info-item-title">On the server</div>
+          <div class="info-item-body">Your Discord user ID, username, and avatar URL. All your characters and notes (title, body, tags, timestamps). Session files so you stay logged in across restarts.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">In your browser</div>
+          <div class="info-item-body">Your theme preference (dark/light) in localStorage. A session cookie that identifies your login — nothing else.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">What's not stored</div>
+          <div class="info-item-body">No analytics, no tracking, no ads. Nothing is shared with Discord beyond the initial login handshake.</div>
+        </div>
+      </div>
+      <div class="info-credit">Built with Node.js, Express, and Discord OAuth2. Created with AI assistance.</div>
+    </div>
+
+    <div class="info-panel hidden" id="tab-changelog">
+      <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v0.7</div>
+          <div class="cl-items">
+            <div class="cl-item new">All Notes grouped view — notes divided by character with colored section borders and headers</div>
+            <div class="cl-item new">About &amp; Changelog modal</div>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-version">v0.6</div>
+          <div class="cl-items">
+            <div class="cl-item fix">Character action icons (edit/delete) now stay inline to the right of the name — fixed nested button HTML issue</div>
+            <div class="cl-item fix">Settings menu no longer goes off screen — drops down from top bar</div>
+            <div class="cl-item new">Live markdown rendering — editor auto-renders 1.5s after you stop typing, click to edit again</div>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-version">v0.5</div>
+          <div class="cl-items">
+            <div class="cl-item new">Character system — create named characters with colors, scope notes per character</div>
+            <div class="cl-item new">Character selector dropdown in sidebar with add, edit, delete</div>
+            <div class="cl-item fix">Preview removed — plain textarea editor only</div>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-version">v0.4</div>
+          <div class="cl-items">
+            <div class="cl-item fix">Persistent sessions — switched to session-file-store so logins survive container restarts</div>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-version">v0.3</div>
+          <div class="cl-items">
+            <div class="cl-item new">Docker &amp; Portainer support — Dockerfile, docker-compose.yml, named volume for data</div>
+            <div class="cl-item fix">Apache reverse proxy fix — removed cookie header manipulation that broke OAuth state</div>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-version">v0.2</div>
+          <div class="cl-items">
+            <div class="cl-item new">Discord OAuth2 login — per-user note isolation, optional allowlist</div>
+            <div class="cl-item new">REST API backend with JSON file store</div>
+            <div class="cl-item new">Tags with sidebar filter, full-text search</div>
+          </div>
+        </div>
+        <div class="cl-entry">
+          <div class="cl-version">v0.1</div>
+          <div class="cl-items">
+            <div class="cl-item new">Initial build — single-file notes app with Markdown, dark/light themes, auto-save</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:8px;">
+      <button class="btn-cancel" id="infoClose">Close</button>
     </div>
   </div>
 </div>
@@ -1133,6 +1306,25 @@ document.addEventListener("click",function(e){
   if(!menu.contains(e.target)&&!tog.contains(e.target)){
     menu.classList.add("hidden");
   }
+});
+
+// info modal
+document.getElementById("infoBtn").addEventListener("click",function(){
+  document.getElementById("infoOverlay").classList.remove("hidden");
+});
+document.getElementById("infoClose").addEventListener("click",function(){
+  document.getElementById("infoOverlay").classList.add("hidden");
+});
+document.getElementById("infoOverlay").addEventListener("click",function(e){
+  if(e.target===this) document.getElementById("infoOverlay").classList.add("hidden");
+});
+document.querySelectorAll(".info-tab").forEach(function(tab){
+  tab.addEventListener("click",function(){
+    document.querySelectorAll(".info-tab").forEach(function(t){ t.classList.remove("active"); });
+    document.querySelectorAll(".info-panel").forEach(function(p){ p.classList.add("hidden"); });
+    tab.classList.add("active");
+    document.getElementById("tab-"+tab.getAttribute("data-tab")).classList.remove("hidden");
+  });
 });
 
 boot();
