@@ -1497,6 +1497,7 @@ document.getElementById("forgetPassBtn").addEventListener("click",function(){
   showToast("Saved passphrase cleared");
 });
 
+document.getElementById("logoutBtn").addEventListener("click",function(){
   document.getElementById("settingsMenu").classList.add("hidden");
   api("/auth/logout",{method:"POST"}).then(function(){
     state.notes={}; state.selectedId=null; state.user=null;
