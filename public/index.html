@@ -178,7 +178,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .note-card-tags span { white-space: nowrap; }
 
 /* --- bottom bar --- */
-.sidebar-bottom { padding: 10px 14px 14px; flex-shrink: 0; }
+.sidebar-bottom { 
+  padding: 10px 14px 14px; flex-shrink: 0; 
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 10;
+}
 .user-row { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
 .user-row img, .avatar-fallback { width: 24px; height: 24px; border-radius: 50%; }
 .avatar-fallback { background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--ink-mid); }
@@ -598,6 +603,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v0.7.2</div>
+          <div class="cl-items">
+            <div class="cl-item fix">Sidebar bottom section (user row, add note button, info button) now fixed at bottom and displays over scrolling note list</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v0.7.1</div>
           <div class="cl-items">
