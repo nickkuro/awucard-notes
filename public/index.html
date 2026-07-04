@@ -1208,11 +1208,17 @@ function renderEditor() {
     note.body=ta.value; note.updatedAt=Date.now();
     scheduleSave(note); renderList(); renderStatus();
     clearTimeout(renderTimer);
-    // Render immediately without delay
-    var html=renderMd(note.body);
-    renderedDiv.innerHTML=html;
-    renderedDiv.classList.add("active");
-    ta.style.display="none";
+    // Keep textarea visible while typing, render after delay
+    ta.style.display="";
+    renderedDiv.classList.remove("active");
+    renderTimer=setTimeout(function(){
+      var html=renderMd(note.body);
+      if(html){
+        renderedDiv.innerHTML=html;
+        ta.style.display="none";
+        renderedDiv.classList.add("active");
+      }
+    }, 3000);
   });
 
   // Click rendered area → back to editing
