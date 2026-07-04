@@ -169,8 +169,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--hole); border: 1px solid var(--border);
 }
+.note-card-header { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 3px; }
+.note-card-header .note-card-title { flex: 1; margin: 0; }
+.note-card-delete {
+  flex-shrink: 0; opacity: 0; color: var(--ink-dim);
+  width: 20px; height: 20px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px; margin-right: 16px; /* clear the hole dot */
+  transition: opacity 0.12s, color 0.12s;
+}
+.note-card:hover .note-card-delete { opacity: 1; }
+.note-card-delete:hover { color: var(--danger); background: var(--surface-hi); }
+.note-card-delete svg { width: 13px; height: 13px; display: block; pointer-events: none; }
 .note-card.active { background: var(--surface-hi); border-color: var(--accent); box-shadow: 0 2px 10px var(--shadow); }
-.note-card-title { font-weight: 600; font-size: 13.5px; margin: 0 18px 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-card-title { font-weight: 600; font-size: 13.5px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-card-title.untitled { color: var(--ink-mid); font-weight: 400; font-style: italic; }
 .note-card-snippet { font-size: 12px; color: var(--ink-mid); margin: 0 0 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-card-meta { display: flex; justify-content: space-between; align-items: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-dim); }
@@ -1091,14 +1103,17 @@ function renderList() {
   function noteCardHtml(n, borderColor) {
     var active=n.id===state.selectedId;
     var titleHtml=n.title
-      ?'<p class="note-card-title">'+esc(n.title)+'</p>'
-      :'<p class="note-card-title untitled">Untitled</p>';
+      ?'<span class="note-card-title">'+esc(n.title)+'</span>'
+      :'<span class="note-card-title untitled">Untitled</span>';
     var tagsHtml=n.tags.slice(0,3).map(function(t){
       return '<span style="color:'+tagColor(t)+'">#'+esc(t)+'</span>';
     }).join(" ");
+    var trashSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
     return '<div class="note-card'+(active?" active":"")+'" data-id="'+n.id+'"'+
       (borderColor?' style="border-left-color:'+borderColor+'"':'')+'>'+
-      titleHtml+
+      '<div class="note-card-header">'+titleHtml+
+        '<button class="note-card-delete" data-delete-id="'+n.id+'" aria-label="Delete note" title="Delete note">'+trashSvg+'</button>'+
+      '</div>'+
       '<p class="note-card-snippet">'+(esc(snippet(n.body))||"No content yet")+'</p>'+
       '<div class="note-card-meta"><span>'+relTime(n.updatedAt)+'</span>'+
       '<div class="note-card-tags">'+tagsHtml+'</div></div></div>';
@@ -1166,6 +1181,14 @@ function renderList() {
       document.getElementById("app").classList.add("show-editor");
     });
   });
+  list.querySelectorAll(".note-card-delete").forEach(function(btn){
+    btn.addEventListener("click",function(e){
+      e.stopPropagation();
+      var id=btn.getAttribute("data-delete-id");
+      var note=state.notes[id];
+      openConfirm("Delete \""+(note&&note.title||"Untitled")+"\"? This can't be undone.",{type:"deleteNote",id:id});
+    });
+  });
 }
 
 function renderEditor() {
@@ -1188,9 +1211,6 @@ function renderEditor() {
           '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'+
         '</button>'+
         '<input class="title-input" id="titleInput" placeholder="Untitled" value="'+esc(note.title)+'" />'+
-        '<button class="icon-btn delete-btn" id="deleteBtn" aria-label="Delete note">'+
-          '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>'+
-        '</button>'+
       '</div>'+
       '<div class="tag-editor" id="tagEditor">'+tagChips+
         '<input class="tag-input" id="tagInput" placeholder="+ tag" />'+
@@ -1308,11 +1328,6 @@ function renderEditor() {
     ta.style.display="";
     renderedDiv.classList.remove("active");
     ta.focus();
-  });
-
-
-  document.getElementById("deleteBtn").addEventListener("click",function(){
-    openConfirm("Delete \""+(note.title||"Untitled")+"\"? This can't be undone.",{type:"deleteNote",id:note.id});
   });
 
   document.querySelectorAll("[data-remove-tag]").forEach(function(btn){
