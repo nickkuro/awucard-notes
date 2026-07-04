@@ -611,6 +611,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
           <div class="cl-items">
             <div class="cl-item fix">Sidebar bottom section (user row, add note button, info button) now fixed at bottom and displays over scrolling note list.</div>
             <div class="cl-item fix">Click out of textarea now immediately renders markdown instead of waiting for delay.</div>
+            <div class="cl-item fix">Markdown rendering on blur now only triggers if window is focused — won't render when you tab away from the browser.</div>
             <div class="cl-item fix">Maybe fixed the damn About and Changelog not displaying 😡</div>
           </div>
         </div>
@@ -1224,11 +1225,14 @@ function renderEditor() {
 
   ta.addEventListener("blur",function(){
     clearTimeout(renderTimer);
-    var html=renderMd(note.body);
-    if(html){
-      renderedDiv.innerHTML=html;
-      ta.style.display="none";
-      renderedDiv.classList.add("active");
+    // Only render if window is still focused
+    if(document.hasFocus()){
+      var html=renderMd(note.body);
+      if(html){
+        renderedDiv.innerHTML=html;
+        ta.style.display="none";
+        renderedDiv.classList.add("active");
+      }
     }
   });
 
