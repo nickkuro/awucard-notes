@@ -426,6 +426,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   font-size: 11px; color: var(--ink-dim); text-align: center;
   padding: 10px 0 4px; font-family: 'IBM Plex Mono', monospace;
 }
+.shortcuts-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.shortcuts-table tr { border-bottom: 1px solid var(--border); }
+.shortcuts-table tr:last-child { border-bottom: none; }
+.shortcuts-table td { padding: 7px 4px; vertical-align: middle; color: var(--ink-mid); }
+.shortcut-key { white-space: nowrap; width: 1%; padding-right: 14px; }
+kbd {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-bottom-width: 2px; border-radius: 4px;
+  padding: 1px 5px; color: var(--ink);
+}
 /* changelog */
 .changelog { display: flex; flex-direction: column; gap: 18px; }
 .cl-entry { display: flex; gap: 14px; }
@@ -618,6 +629,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
           <div class="info-item-title">Tags</div>
           <div class="info-item-body">Add tags to notes from the editor. Tags appear in the sidebar as filters you can click to narrow the list.</div>
         </div>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">Keyboard shortcuts</div>
+        <table class="shortcuts-table">
+          <tbody>
+            <tr><td class="shortcut-key"><kbd>Enter</kbd> or <kbd>,</kbd></td><td>Add a tag (while typing in the tag field)</td></tr>
+            <tr><td class="shortcut-key"><kbd>Backspace</kbd></td><td>Remove last tag (when tag field is empty)</td></tr>
+            <tr><td class="shortcut-key"><kbd>Enter</kbd></td><td>Add a character (while typing in the character name field)</td></tr>
+            <tr><td class="shortcut-key"><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Force save the current note immediately</td></tr>
+            <tr><td class="shortcut-key"><kbd>Esc</kbd></td><td>Close any open dropdown or dialog</td></tr>
+            <tr><td class="shortcut-key"><kbd>Shift</kbd>+Click 🗑</td><td>Delete a note instantly, skipping the confirm prompt</td></tr>
+          </tbody>
+        </table>
       </div>
       <div class="info-section">
         <div class="info-heading">What's stored</div>
@@ -1186,7 +1210,11 @@ function renderList() {
       e.stopPropagation();
       var id=btn.getAttribute("data-delete-id");
       var note=state.notes[id];
-      openConfirm("Delete \""+(note&&note.title||"Untitled")+"\"? This can't be undone.",{type:"deleteNote",id:id});
+      if(e.shiftKey){
+        deleteNote(id); // skip confirm
+      } else {
+        openConfirm("Delete \""+(note&&note.title||"Untitled")+"\"? This can't be undone.",{type:"deleteNote",id:id});
+      }
     });
   });
 }
@@ -1438,7 +1466,31 @@ document.addEventListener("click",function(e){
   }
 });
 
-// info modal
+// global keyboard shortcuts
+document.addEventListener("keydown",function(e){
+  // Escape — close any open overlay or dropdown
+  if(e.key==="Escape"){
+    closeCharDropdown();
+    document.getElementById("settingsMenu").classList.add("hidden");
+    document.getElementById("confirmOverlay").classList.add("hidden");
+    document.getElementById("charEditOverlay").classList.add("hidden");
+    document.getElementById("infoOverlay").classList.add("hidden");
+    return;
+  }
+  // Ctrl/Cmd+S — force save current note immediately
+  if((e.ctrlKey||e.metaKey)&&e.key==="s"){
+    e.preventDefault();
+    var note=state.notes[state.selectedId];
+    if(note){
+      clearTimeout(saveTimers[note.id]);
+      api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags})})
+        .then(function(){saveStatus[note.id]="saved"; renderStatus();})
+        .catch(function(){saveStatus[note.id]="error"; renderStatus();});
+    }
+  }
+});
+
+
 document.getElementById("infoBtn").addEventListener("click",function(){
   document.getElementById("infoOverlay").classList.remove("hidden");
 });
