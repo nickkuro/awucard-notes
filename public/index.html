@@ -204,6 +204,31 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
 .empty-list { padding: 28px 12px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; text-align: center; }
 
+/* Character group sections (shown in All Notes view) */
+.char-group { margin-bottom: 14px; }
+.char-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 2px 6px; margin-bottom: 6px;
+}
+.char-group-line { flex: 1; height: 1px; background: var(--border); }
+.char-group-label {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  font-weight: 600; letter-spacing: 0.1em; color: var(--ink-dim);
+  white-space: nowrap; text-transform: uppercase;
+}
+.char-group-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.char-group-cards {
+  border: 1px solid var(--border); border-radius: 7px;
+  overflow: hidden;
+  border-left-width: 3px;
+}
+.char-group-cards .note-card {
+  border-left: none; border-right: none; border-top: none; border-radius: 0;
+  margin-bottom: 0; border-bottom: 1px solid var(--border);
+}
+.char-group-cards .note-card:last-child { border-bottom: none; }
+
 /* ===================== EDITOR ===================== */
 .editor { flex: 1; display: flex; flex-direction: column; height: 100vh; min-width: 0; }
 .editor-placeholder {
@@ -829,9 +854,8 @@ function renderList() {
   }
   var filtered=getFiltered();
   if(!filtered.length){list.innerHTML='<div class="empty-list">No notes match.</div>'; return;}
-  var c=currentChar();
-  list.innerHTML=filtered.map(function(n){
-    var borderColor=c?c.color:(n.tags.length?tagColor(n.tags[0]):"var(--border)");
+
+  function noteCardHtml(n, borderColor) {
     var active=n.id===state.selectedId;
     var titleHtml=n.title
       ?'<p class="note-card-title">'+esc(n.title)+'</p>'
@@ -839,12 +863,69 @@ function renderList() {
     var tagsHtml=n.tags.slice(0,3).map(function(t){
       return '<span style="color:'+tagColor(t)+'">#'+esc(t)+'</span>';
     }).join(" ");
-    return '<div class="note-card'+(active?" active":"")+'" data-id="'+n.id+'" style="border-left-color:'+borderColor+'">'+
+    return '<div class="note-card'+(active?" active":"")+'" data-id="'+n.id+'"'+
+      (borderColor?' style="border-left-color:'+borderColor+'"':'')+'>'+
       titleHtml+
       '<p class="note-card-snippet">'+(esc(snippet(n.body))||"No content yet")+'</p>'+
       '<div class="note-card-meta"><span>'+relTime(n.updatedAt)+'</span>'+
       '<div class="note-card-tags">'+tagsHtml+'</div></div></div>';
-  }).join("");
+  }
+
+  if(state.characterId !== "__all__") {
+    // Single character view — flat list with colored left border
+    var c=currentChar();
+    var borderColor=c?c.color:(filtered[0]&&filtered[0].tags.length?tagColor(filtered[0].tags[0]):"var(--border)");
+    list.innerHTML=filtered.map(function(n){ return noteCardHtml(n, c?c.color:(n.tags.length?tagColor(n.tags[0]):"var(--border)")); }).join("");
+  } else {
+    // All notes view — group by character
+    // Build ordered groups: named characters first (in order), then uncategorized
+    var groups=[];
+    var byChar={};
+
+    // Initialize groups in character order
+    state.characters.forEach(function(c){
+      byChar[c.id]=[];
+      groups.push({char:c, notes:byChar[c.id]});
+    });
+    var uncategorized=[];
+
+    filtered.forEach(function(n){
+      if(n.characterId && byChar[n.characterId]){
+        byChar[n.characterId].push(n);
+      } else {
+        uncategorized.push(n);
+      }
+    });
+
+    // Add uncategorized at end if any exist
+    if(uncategorized.length){
+      groups.push({char:null, notes:uncategorized});
+    }
+
+    // Remove empty groups
+    groups=groups.filter(function(g){return g.notes.length>0;});
+
+    list.innerHTML=groups.map(function(g){
+      var c=g.char;
+      var color=c?c.color:"var(--ink-dim)";
+      var label=c?esc(c.name):"Uncategorized";
+      var cardsHtml=g.notes.map(function(n){ return noteCardHtml(n, null); }).join("");
+      return '<div class="char-group">'+
+        '<div class="char-group-header">'+
+          '<div class="char-group-line"></div>'+
+          '<div class="char-group-label">'+
+            '<span class="char-group-dot" style="background:'+color+'"></span>'+
+            label+
+          '</div>'+
+          '<div class="char-group-line"></div>'+
+        '</div>'+
+        '<div class="char-group-cards" style="border-left-color:'+color+'">'+
+          cardsHtml+
+        '</div>'+
+      '</div>';
+    }).join("");
+  }
+
   list.querySelectorAll(".note-card").forEach(function(card){
     card.addEventListener("click",function(){
       state.selectedId=card.getAttribute("data-id");
