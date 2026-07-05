@@ -77,22 +77,45 @@ function splitMessage(text, max = 1900) {
   return chunks;
 }
 
+function getAppUrl() {
+  return "https://notes.awucard.me";
+}
+
+function buildReminderBlurb(note) {
+  const title = note.title?.trim() || "Untitled note";
+  const body = (note.body || "").replace(/\s+/g, " ").trim();
+  const blurb = body ? body.slice(0, 180) + (body.length > 180 ? "..." : "") : "No note body yet.";
+  return `Hey, wake up. You asked me to remind you about this note.\n\n**${title}**\n\n${blurb}`;
+}
+
 async function sendDM(discordUserId, content, options = {}) {
   const channel = await getDMChannel(discordUserId);
   const chunks = splitMessage(content, options.maxLength || 3800);
   const label = options.label || "Ledger";
   for (const chunk of chunks) {
+    const payload = {
+      content: "",
+      embeds: [{
+        title: label,
+        description: chunk,
+        color: 0xE8A33D,
+        footer: { text: "Sent from Ledger" }
+      }]
+    };
+    if (options.buttonUrl) {
+      payload.components = [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 5,
+          label: options.buttonLabel || "Head to Ledger",
+          url: options.buttonUrl
+        }]
+      }];
+    }
     await botFetch(`/channels/${channel.id}/messages`, {
       method: "POST",
-      body: JSON.stringify({
-        content: "",
-        embeds: [{
-          title: label,
-          description: chunk,
-          color: 0xE8A33D,
-          footer: { text: "Sent from Ledger" }
-        }]
-      })
+      body: JSON.stringify(payload)
     });
   }
 }
@@ -117,8 +140,11 @@ function startReminderJob() {
         const body = note ? note.body : "(Note no longer exists)";
         const tags = note ? note.tags : [];
         const fakeNote = { title, body, tags };
-        const content = formatNoteForDiscord(fakeNote, "⏰ **Reminder**");
-        if (user) await sendDM(user.id, content, { label: "Reminder" });
+        const content = buildReminderBlurb(fakeNote);
+        if (user) await sendDM(user.id, content, {
+          label: "Hey, wake up",
+          buttonUrl: getAppUrl()
+        });
       } catch (err) {
         console.error("Reminder DM failed:", err.message);
       }
