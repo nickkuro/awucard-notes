@@ -84,7 +84,11 @@ function getAppUrl() {
 function buildReminderBlurb(note) {
   const title = note.title?.trim() || "Untitled note";
   const body = (note.body || "").replace(/\s+/g, " ").trim();
-  const blurb = body ? body.slice(0, 180) + (body.length > 180 ? "..." : "") : "No note body yet.";
+  const blurb = body
+    ? body.length > 180
+      ? `${body.slice(0, 180)}...\n\n[See more on Ledger]`
+      : body
+    : "No note body yet.";
   return `Hey, wake up. You asked me to remind you about this note.\n\n**${title}**\n\n${blurb}`;
 }
 
