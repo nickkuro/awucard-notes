@@ -36,7 +36,22 @@
       h1 { margin-top: 0; }
       p, li { color: var(--muted); }
       a { color: var(--accent); }
-      .back { display: inline-block; margin-bottom: 18px; }
+      .back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(232,163,61,0.12);
+        border: 1px solid rgba(232,163,61,0.2);
+        text-decoration: none;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .back:hover {
+        background: rgba(232,163,61,0.18);
+      }
     </style>
   </head>
   <body>
