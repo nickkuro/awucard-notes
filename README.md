@@ -1,150 +1,127 @@
-# Ledger (with Discord login)
+# Ledger
 
-A small notes app with Markdown, tags, search, dark/light themes, and "Continue
-with Discord" login, so a group of people can each have their own private
-notes on one shared site. Everyone's data lives in `data/db.json` on the
-server, not in a browser, so notes follow you between devices.
+Ledger is a private, Discord-backed notes app for characters, stories, and personal worldbuilding. It started as a simple note-taking tool and has grown into a small app with character organization, markdown notes, reminders, and Discord integrations.
 
-This is a real server, not a static page, because Discord login requires a
-client secret that has to stay off the internet entirely except in direct
-requests between your server and Discord. There's no way to do that safely
-from a page running purely in someone's browser.
+The app is intentionally personal and private: each user signs in with Discord, gets their own notes space, and keeps data on the server rather than in the browser.
 
-## 1. Register a Discord application
+## What it can do now
+
+- Discord login with a personal account space
+- Character-based organization with colored character groups
+- Notes with plain text or Markdown
+- Auto-save and live markdown rendering
+- Tags, search, and filtered note views
+- Image embedding in notes
+- Send a note directly to your own Discord DMs
+- One-time and repeating reminders sent to Discord DMs
+- Per-user timezone support for reminder display
+- About + changelog modal
+- Terms of Service and Privacy Policy pages
+- Dark/light theme support
+
+## Current status
+
+Ledger is usable and actively being refined. The site is still getting polish, so expect small changes and occasional surprises while the app evolves.
+
+## Quick start
+
+### 1. Register a Discord application
 
 1. Go to https://discord.com/developers/applications and create a new application.
-2. Open **OAuth2** in the sidebar. Note the **Client ID** and **Client Secret**
-   (click "Reset Secret" if one isn't shown yet).
-3. Under **Redirects**, add the exact URL your server will use, for example:
-   - Local testing: `http://localhost:3000/auth/discord/callback`
-   - After deploying: `https://your-domain.com/auth/discord/callback`
-   You can add both at once and switch between them as needed.
+2. Open OAuth2 in the sidebar and note the Client ID and Client Secret.
+3. Under Redirects, add:
+   - Local: `http://localhost:3000/auth/discord/callback`
+   - Production: `https://your-domain.com/auth/discord/callback`
 
-## 2. Configure the app
+### 2. Configure the app
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and `DISCORD_REDIRECT_URI`
-to match what you set up above. Generate a `SESSION_SECRET` with:
+Fill in the required values:
+
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `DISCORD_REDIRECT_URI`
+- `SESSION_SECRET`
+
+Generate a session secret with:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-If you only want specific people to be able to log in (recommended for a
-friend group), set `ALLOWED_DISCORD_IDS` to a comma-separated list of their
-Discord user IDs. Leave it blank to let anyone with a Discord account in.
+Optional:
 
-## 3. Run it
+- `ALLOWED_DISCORD_IDS` for a guest list of approved Discord user IDs
+- `BOT_TOKEN` if you want DM sending and reminders enabled
+- `PORT` if you want a custom port
+
+### 3. Install and run
 
 ```bash
 npm install
 npm start
 ```
 
-Visit `http://localhost:3000`, click **Continue with Discord**, and you
-should land back in the app logged in.
+Then visit `http://localhost:3000` and sign in with Discord.
 
-## 4. Put it somewhere with a real address
+## Deployment
 
-Discord needs to redirect back to a URL it can reach, so this has to live
-somewhere with a stable address (`localhost` only works while you're testing
-on your own machine). A few straightforward options, roughly easiest first:
+Discord login needs a real HTTPS callback URL, so the app should be deployed somewhere with a stable domain. Good options include:
 
-- **Railway, Render, or Fly.io**: connect this folder as a repo, set the same
-  environment variables from `.env` in their dashboard, and deploy. All three
-  give you a free HTTPS domain out of the box.
-- **Docker / Portainer**: see the dedicated section below.
-- **A VPS** (DigitalOcean, Linode, etc.): copy this folder over, run
-  `npm install && npm start` behind a process manager like `pm2`, and put
-  Caddy or nginx in front of it for HTTPS.
+- Railway, Render, or Fly.io
+- Docker / Portainer
+- A VPS with nginx or Caddy
 
-Whichever you choose, update `DISCORD_REDIRECT_URI` in your environment
-variables and the redirect list in the Discord Developer Portal to match the
-real domain, and set `NODE_ENV=production` so session cookies require HTTPS.
+In production, make sure:
 
-## 5. Running it in Docker / Portainer
+- `DISCORD_REDIRECT_URI` matches the deployed domain
+- `NODE_ENV=production` is set
+- the app is served over HTTPS
 
-The repo includes a `Dockerfile` and `docker-compose.yml`. The container runs
-as a non-root user and writes notes to `/app/data`, which the compose file
-maps to a named volume (`ledger_data`) so your notes survive container
-restarts, updates, and recreation.
+## Docker / Portainer
 
-### Quick local test with Docker
+The repo includes a Dockerfile and docker-compose.yml for containerized deployment.
+
+### Local Docker run
 
 ```bash
-cp .env.example .env   # fill in real values first
+cp .env.example .env
 docker compose up --build
 ```
 
-Visit `http://localhost:3000` (or whatever `HOST_PORT` you set) and confirm
-login works before moving on to Portainer.
+### Portainer
 
-### Deploying in Portainer
+1. Push the repo to GitHub or another Git host.
+2. In Portainer, create a stack from the repository.
+3. Add the same environment variables from `.env`.
+4. Deploy the stack.
 
-Portainer needs access to the `Dockerfile` to build the image, so the
-cleanest path is pointing it at a git repo rather than pasting the compose
-file directly:
+The container uses a persistent data volume so your notes survive container restarts and recreation.
 
-1. Push this folder to a Git repo (GitHub, GitLab, a self-hosted Gitea, etc).
-   Make sure `.env` is **not** committed — `.gitignore` already excludes it.
-2. In Portainer: **Stacks > Add stack > Repository**.
-3. Enter the repo URL and branch. Portainer will pull `docker-compose.yml`
-   and build the image from the `Dockerfile` automatically.
-4. Under **Environment variables**, add:
-   - `DISCORD_CLIENT_ID`
-   - `DISCORD_CLIENT_SECRET`
-   - `DISCORD_REDIRECT_URI` (must match what's registered in Discord, e.g.
-     `https://notes.yourdomain.com/auth/discord/callback`)
-   - `SESSION_SECRET`
-   - `ALLOWED_DISCORD_IDS` (optional)
-   - `HOST_PORT` (optional, defaults to 3000)
-5. Deploy the stack.
+## Project structure
 
-If you'd rather not use a git repo, build and push the image yourself instead,
-then paste the compose file into Portainer's web editor with `build: .`
-replaced by the image you pushed:
+- `server.js` — Express server, Discord OAuth flow, and API routes
+- `store.js` — data storage logic for notes, characters, reminders, and users
+- `public/index.html` — frontend UI and modal views
+- `public/terms.html` and `public/privacy.html` — legal pages
+- `Dockerfile` and `docker-compose.yml` — container setup
 
-```bash
-docker build -t yourname/ledger-discord:latest .
-docker push yourname/ledger-discord:latest
-```
+## Notes on data
 
-Then in `docker-compose.yml`, drop the `build: .` line and set
-`image: yourname/ledger-discord:latest`. Paste that into **Stacks > Add stack
-> Web editor**, add the same environment variables there, and deploy.
+Ledger currently stores data in a JSON-based store on the server. That is simple and practical for a small personal project, and it keeps the app easy to run and back up. If the project grows, the data layer can be swapped out without changing the rest of the app.
 
-### Reverse proxy and HTTPS
+## Recent progress
 
-Discord login cookies are marked `secure` in production, so the app needs to
-be served over HTTPS. If you're running something like Nginx Proxy Manager,
-Caddy, or Traefik in front of your Portainer containers already, just point
-it at this container's port and let it handle TLS — no changes needed here
-beyond `NODE_ENV=production`, which the compose file already sets.
+The app now includes:
 
-### Backing up notes
+- a fuller note editor experience
+- character-based note organization
+- Discord DM sending
+- reminders and timezone handling
+- polished About / Changelog content
+- basic legal pages for Terms and Privacy
 
-Notes live in the `ledger_data` volume as a single `db.json` file. To copy it
-out for a backup:
-
-```bash
-docker cp ledger:/app/data/db.json ./db-backup.json
-```
-
-## How it's organized
-
-- `server.js` — Express app: the Discord login flow and the notes API
-- `store.js` — reads and writes `data/db.json`; swap this out later for a real
-  database if the group outgrows a JSON file
-- `public/index.html` — the whole frontend, talks to the API with `fetch`
-- `Dockerfile`, `docker-compose.yml` — for running this in Docker or Portainer
-
-## Notes on scale and durability
-
-A JSON file is plenty for a handful of people jotting notes. If this grows
-into something more serious, the only file that needs to change is
-`store.js`; the API and frontend don't care where the data actually lives.
-Back up `data/db.json` periodically if the notes matter to you, since there's
-no replication or automatic backup built in.
+If you want, the next step can be turning this into a more formal project roadmap or adding a changelog section for future releases.
