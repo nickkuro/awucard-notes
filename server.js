@@ -77,13 +77,22 @@ function splitMessage(text, max = 1900) {
   return chunks;
 }
 
-async function sendDM(discordUserId, content) {
+async function sendDM(discordUserId, content, options = {}) {
   const channel = await getDMChannel(discordUserId);
-  const chunks = splitMessage(content);
+  const chunks = splitMessage(content, options.maxLength || 3800);
+  const label = options.label || "Ledger";
   for (const chunk of chunks) {
     await botFetch(`/channels/${channel.id}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content: chunk })
+      body: JSON.stringify({
+        content: "",
+        embeds: [{
+          title: label,
+          description: chunk,
+          color: 0xE8A33D,
+          footer: { text: "Sent from Ledger" }
+        }]
+      })
     });
   }
 }
@@ -109,7 +118,7 @@ function startReminderJob() {
         const tags = note ? note.tags : [];
         const fakeNote = { title, body, tags };
         const content = formatNoteForDiscord(fakeNote, "⏰ **Reminder**");
-        if (user) await sendDM(user.id, content);
+        if (user) await sendDM(user.id, content, { label: "Reminder" });
       } catch (err) {
         console.error("Reminder DM failed:", err.message);
       }
@@ -225,7 +234,7 @@ app.post("/api/notes/:id/send-dm", requireAuth, async (req, res) => {
   const note = store.getNote(req.session.user.id, req.params.id);
   if (!note) return res.status(404).json({ error: "Not found" });
   try {
-    await sendDM(req.session.user.id, formatNoteForDiscord(note));
+    await sendDM(req.session.user.id, formatNoteForDiscord(note), { label: "Note from Ledger" });
     res.json({ ok: true });
   } catch (err) {
     console.error("Send DM failed:", err.message);
