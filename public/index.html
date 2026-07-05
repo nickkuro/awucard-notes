@@ -502,7 +502,7 @@ kbd {
 
 <!-- ANNOUNCEMENT BAR -->
 <div style="background: var(--accent); color: var(--accent-ink); padding: 8px 16px; text-align: center; font-size: 13px; font-weight: 500;">
-  ⚠️ This site is still under development and should not be used as a notepad yet.
+  ⚠️ This site is still under development. Keep an eye on the changelog & suggest changes you'd like!
 </div>
 
 <!-- LOGIN -->
@@ -1628,7 +1628,7 @@ document.getElementById("sendDmConfirm").addEventListener("click",function(){
   showToast("Sending…");
   api("/api/notes/"+id+"/send-dm",{method:"POST"})
     .then(function(){ showToast("Sent to your Discord DMs ✓"); })
-    .catch(function(){ showToast("Failed to send — check bot is configured"); });
+    .catch(function(){ showToast("Failed to send — check bot is configured or contact Awucard."); });
 });
 document.getElementById("sendDmOverlay").addEventListener("click",function(e){
   if(e.target===this){ document.getElementById("sendDmOverlay").classList.add("hidden"); pendingSendDmNote=null; }
