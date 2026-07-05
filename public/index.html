@@ -468,10 +468,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .donate-link-btn:hover {
   background: linear-gradient(135deg, rgba(232,163,61,0.22), rgba(79,168,160,0.22));
 }
+.donate-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+}
 .donate-count {
   font-size: 12px;
   color: var(--ink-mid);
-  margin-left: 4px;
+  margin: 0;
 }
 .info-credit {
   font-size: 11px; color: var(--ink-dim); text-align: center;
@@ -844,9 +851,9 @@ kbd {
               <a class="legal-link-btn" href="/terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a>
               <a class="legal-link-btn" href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
             </div>
-            <div class="legal-links" style="margin-top: 10px; flex-direction: column; align-items: flex-start; gap: 6px;">
+            <div class="donate-area">
               <a class="legal-link-btn donate-link-btn" id="donateBtn" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer">Donate to a starving artist</a>
-              <div class="donate-count" id="donateCount">Someone clicked this 1 time</div>
+              <div class="donate-count" id="donateCount">Someone unforunately clicked this 1 time and donated! 😇</div>
             </div>
           </div>
         </div>
