@@ -109,11 +109,17 @@ function deleteCharacter(ownerId, id) {
 // ---------- notes ----------
 function listNotes(ownerId, characterId) {
   const db = load();
-  return Object.values(db.notes).filter((n) => {
-    if (n.ownerId !== ownerId) return false;
-    if (characterId === "__all__") return true;
-    return (n.characterId || null) === (characterId || null);
-  });
+  const requestedCharacterId = characterId || null;
+  return Object.values(db.notes)
+    .filter((n) => n.ownerId === ownerId)
+    .filter((n) => {
+      if (characterId === "__all__") return true;
+      return n.sticky || (n.characterId || null) === requestedCharacterId;
+    })
+    .sort((a, b) => {
+      if (a.sticky !== b.sticky) return a.sticky ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
 }
 
 function getNote(ownerId, id) {
@@ -127,7 +133,17 @@ function createNote(ownerId, partial) {
   const db = load();
   const id = uid();
   const now = Date.now();
-  const note = { id, ownerId, characterId: partial.characterId || null, title: partial.title || "", body: partial.body || "", tags: Array.isArray(partial.tags) ? partial.tags : [], createdAt: now, updatedAt: now };
+  const note = {
+    id,
+    ownerId,
+    characterId: partial.characterId || null,
+    title: partial.title || "",
+    body: partial.body || "",
+    tags: Array.isArray(partial.tags) ? partial.tags : [],
+    sticky: Boolean(partial.sticky),
+    createdAt: now,
+    updatedAt: now
+  };
   db.notes[id] = note;
   return persist().then(() => note);
 }
@@ -139,6 +155,7 @@ function updateNote(ownerId, id, partial) {
   if (typeof partial.title === "string") note.title = partial.title;
   if (typeof partial.body === "string") note.body = partial.body;
   if (Array.isArray(partial.tags)) note.tags = partial.tags;
+  if (typeof partial.sticky === "boolean") note.sticky = partial.sticky;
   note.updatedAt = Date.now();
   return persist().then(() => note);
 }
