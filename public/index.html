@@ -566,7 +566,189 @@ kbd {
 .cl-item.new::before { background: var(--teal); }
 .cl-item.fix::before { background: var(--amber); }
 
-/* ===================== MOBILE ===================== */
+/* ===================== CALENDAR ===================== */
+/* view switcher tabs */
+.view-tabs {
+  display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.view-tab {
+  flex: 1; padding: 9px 8px; font-size: 12px; font-weight: 500;
+  color: var(--ink-mid); display: flex; align-items: center; justify-content: center;
+  gap: 6px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.04em;
+}
+.view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.view-tab:hover:not(.active) { color: var(--ink); }
+.view-tab svg { width: 14px; height: 14px; display: block; }
+
+/* calendar main area */
+.cal-main {
+  flex: 1; display: flex; flex-direction: column; height: 100vh;
+  min-width: 0; overflow: hidden;
+}
+.cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 22px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.cal-nav { display: flex; align-items: center; gap: 10px; }
+.cal-nav-btn {
+  width: 30px; height: 30px; border-radius: 6px; display: flex;
+  align-items: center; justify-content: center; color: var(--ink-mid);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.cal-nav-btn:hover { color: var(--ink); border-color: var(--accent); }
+.cal-nav-btn svg { width: 15px; height: 15px; display: block; }
+.cal-title {
+  font-family: 'IBM Plex Mono', monospace; font-weight: 600;
+  font-size: 15px; letter-spacing: 0.06em; min-width: 180px; text-align: center;
+}
+.cal-today-btn {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  padding: 5px 10px; border-radius: 5px; color: var(--ink-mid);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.cal-today-btn:hover { border-color: var(--accent); color: var(--ink); }
+.cal-mode-tabs { display: flex; gap: 2px; }
+.cal-mode-btn {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em;
+  padding: 5px 10px; border-radius: 5px; color: var(--ink-mid);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.cal-mode-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* calendar body */
+.cal-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* month grid */
+.cal-month { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.cal-dow-row {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.cal-dow {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+  color: var(--ink-dim); text-align: center; padding: 8px 0; text-transform: uppercase;
+}
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr; flex: 1; overflow: hidden;
+  border-left: 1px solid var(--border);
+}
+.cal-day {
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  padding: 7px 8px; cursor: pointer; position: relative; min-height: 80px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.cal-day:hover { background: var(--surface); }
+.cal-day.other-month { opacity: 0.35; }
+.cal-day.today .cal-day-num {
+  background: var(--accent); color: var(--accent-ink);
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-day.selected { background: rgba(232,163,61,0.07); outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-day-num {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+  color: var(--ink-mid); width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-day-events { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.cal-event-pill {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.5; cursor: pointer;
+}
+.cal-event-pill.due { background: rgba(79,168,160,0.18); color: var(--teal); }
+.cal-event-pill.reminder { background: rgba(232,163,61,0.18); color: var(--amber); }
+.cal-overflow { font-size: 10px; color: var(--ink-dim); padding-left: 5px; margin-top: 1px; }
+
+/* week view */
+.cal-week { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.cal-week-header {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.cal-week-col-head {
+  text-align: center; padding: 8px 4px; border-right: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.cal-week-col-head:last-child { border-right: none; }
+.cal-week-dow { font-size: 10px; letter-spacing: 0.1em; color: var(--ink-dim); text-transform: uppercase; }
+.cal-week-date {
+  font-size: 18px; font-weight: 600; color: var(--ink-mid);
+  width: 32px; height: 32px; border-radius: 50%; margin: 2px auto 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-week-col-head.today .cal-week-date { background: var(--accent); color: var(--accent-ink); }
+.cal-week-body { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-week-day {
+  border-right: 1px solid var(--border); padding: 8px 6px;
+  display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+  min-height: 120px;
+}
+.cal-week-day:last-child { border-right: none; }
+.cal-week-day:hover { background: var(--surface); }
+.cal-week-day.selected { background: rgba(232,163,61,0.07); }
+.cal-week-event {
+  font-size: 11px; padding: 3px 6px; border-radius: 4px;
+  line-height: 1.4; cursor: pointer;
+}
+.cal-week-event.due { background: rgba(79,168,160,0.18); color: var(--teal); }
+.cal-week-event.reminder { background: rgba(232,163,61,0.18); color: var(--amber); }
+
+/* calendar side panel */
+.cal-side {
+  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+}
+.cal-side-date {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim);
+  padding: 12px 14px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.cal-side-body { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.cal-side-section { margin-bottom: 16px; }
+.cal-side-heading {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-dim); margin-bottom: 8px;
+  padding-bottom: 5px; border-bottom: 1px solid var(--border);
+}
+.cal-side-item {
+  padding: 7px 10px; border-radius: 5px; margin-bottom: 5px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.cal-side-item:hover { border-color: var(--accent); }
+.cal-side-item-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-side-item-meta { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-dim); }
+.cal-side-item.reminder-item .cal-side-item-title { color: var(--amber); }
+.cal-side-empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 20px 0; }
+.cal-side-add {
+  padding: 10px 14px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.cal-side-add button {
+  width: 100%; padding: 8px; border-radius: 6px; background: var(--accent);
+  color: var(--accent-ink); font-weight: 600; font-size: 13px;
+}
+
+/* due date field in editor */
+.due-date-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0 2px;
+}
+.due-date-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px;
+  letter-spacing: 0.08em; color: var(--ink-dim); white-space: nowrap;
+}
+.due-date-input {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 7px; color: var(--ink);
+}
+.due-date-input:focus { border-color: var(--accent); outline: none; }
+.due-date-clear {
+  font-size: 14px; color: var(--ink-dim); padding: 0 2px;
+  line-height: 1; border-radius: 3px;
+}
+.due-date-clear:hover { color: var(--danger); }
 @media (max-width: 820px) {
   .app { position: relative; overflow: hidden; }
   .sidebar, .editor { width: 100%; min-width: 100%; flex: 0 0 100%; }
@@ -627,6 +809,21 @@ kbd {
       </div>
     </div>
 
+    <!-- VIEW TABS -->
+    <div class="view-tabs">
+      <button class="view-tab active" id="tabNotes" data-view="notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Notes
+      </button>
+      <button class="view-tab" id="tabCalendar" data-view="calendar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendar
+      </button>
+    </div>
+
+    <!-- NOTES VIEW CONTENT -->
+    <div id="notesViewContent" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+
     <!-- CHARACTER SELECTOR -->
     <div class="char-bar">
       <div style="position:relative;">
@@ -657,6 +854,19 @@ kbd {
     <div class="tag-row" id="tagRow"></div>
     <div class="note-list" id="noteList"></div>
 
+    </div><!-- end notesViewContent -->
+
+    <!-- CALENDAR SIDE PANEL -->
+    <div id="calSidePanel" class="cal-side hidden">
+      <div class="cal-side-date" id="calSideDate">Select a day</div>
+      <div class="cal-side-body" id="calSideBody">
+        <div class="cal-side-empty">Click a day to see its notes and reminders.</div>
+      </div>
+      <div class="cal-side-add">
+        <button id="calSideAddNote">+ Note for this day</button>
+      </div>
+    </div>
+
     <div class="sidebar-bottom">
       <div class="user-row" id="userRow"></div>
       <div style="display: flex; gap: 8px; margin-bottom: 10px;">
@@ -673,7 +883,23 @@ kbd {
   <main class="editor" id="editor">
     <div class="editor-placeholder">Select a note or create one.</div>
   </main>
-</div>
+
+  <!-- CALENDAR MAIN VIEW -->
+  <div class="cal-main hidden" id="calMain">
+    <div class="cal-header">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" id="calPrev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="cal-title" id="calTitle"></div>
+        <button class="cal-nav-btn" id="calNext"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+      <button class="cal-today-btn" id="calToday">Today</button>
+      <div class="cal-mode-tabs">
+        <button class="cal-mode-btn active" data-mode="month">Month</button>
+        <button class="cal-mode-btn" data-mode="week">Week</button>
+      </div>
+    </div>
+    <div class="cal-body" id="calBody"></div>
+  </div>
 
 <!-- REMINDER MODAL -->
 <div class="overlay-bg hidden" id="reminderOverlay">
@@ -839,6 +1065,14 @@ kbd {
           <div class="info-item-body">Click "Send to DMs" in the editor to send the current note to your own Discord DMs, formatted in markdown. Notes longer than ~1900 characters are split into multiple messages automatically. Requires the bot to be configured.</div>
         </div>
         <div class="info-item">
+          <div class="info-item-title">Calendar</div>
+          <div class="info-item-body">Switch to the Calendar tab in the sidebar to see a month or week view of your notes and reminders. Days with due notes show coloured pills (matching the character's colour), and reminder days show an amber badge. Click any day to see its events in the sidebar panel and jump to the linked note. You can also create a note directly from the calendar with the due date pre-filled.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Due dates</div>
+          <div class="info-item-body">Set a due date on any note using the date picker in the editor, between the tags and the action bar. The note then appears on the calendar on that date. Remove the date at any time with the × button.</div>
+        </div>
+        <div class="info-item">
           <div class="info-item-title">Reminders</div>
           <div class="info-item-body">Click "Remind me" in the editor to set a reminder for a note. Choose a quick option (10m, 1h, 3h, 1d) or a custom date and time. Reminders are sent to your Discord DMs when they fire. Repeating reminders reschedule themselves automatically. Requires the bot to be configured.</div>
         </div>
@@ -881,12 +1115,17 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
-          <div class="cl-entry">
-          <div class="cl-version">v1.0.3</div>
+        <div class="cl-entry">
+          <div class="cl-version">v2.0</div>
           <div class="cl-items">
-            <div class="cl-item fix">Changed the time it takes for the Editor to render the note from 3 seconds to 60 seconds per a suggestion.</div>
+            <div class="cl-item new">Calendar — full month and week views accessible via a new tab in the sidebar. Days with due notes or reminders show coloured pills.</div>
+            <div class="cl-item new">Due dates on notes — set a date from the editor and it appears on the calendar automatically.</div>
+            <div class="cl-item new">Day detail panel — click any calendar day to see all its due notes and reminders in the sidebar, each clickable to jump straight to the note.</div>
+            <div class="cl-item new">"Note for this day" shortcut — creates a new note from the calendar with the due date pre-filled.</div>
+            <div class="cl-item fix">Markdown render delay increased per suggestion from users.</div>
           </div>
         </div>
+        <div class="cl-separator"><span>The Big One.</span></div>
         <div class="cl-entry">
           <div class="cl-version">v1.0.2</div>
           <div class="cl-items">
@@ -1021,12 +1260,18 @@ var TAG_PALETTE = ["#e8a33d","#4fa8a0","#c97b8e","#7c8cc9","#9bb05a","#cf9bd6"];
 var state = {
   theme: localStorage.getItem("ledger-theme") || "dark",
   user: null,
-  characters: [],   // [{id, name, color}]
-  characterId: "__all__", // currently selected character id or "__all__"
+  characters: [],
+  characterId: "__all__",
   notes: {},
   selectedId: null,
   search: "",
-  activeTags: new Set()
+  activeTags: new Set(),
+  view: "notes",
+  calMode: "month",
+  calAnchor: new Date(),
+  calSelected: null,
+  calReminders: [],
+  calAllNotes: {}
 };
 
 var saveTimers = {};
@@ -1127,7 +1372,7 @@ function scheduleSave(note) {
   renderStatus();
   clearTimeout(saveTimers[note.id]);
   saveTimers[note.id]=setTimeout(function(){
-    api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky})})
+    api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky,dueDate:note.dueDate||null})})
       .then(function(){saveStatus[note.id]="saved"; renderStatus();})
       .catch(function(){saveStatus[note.id]="error"; renderStatus();});
   },500);
@@ -1510,6 +1755,11 @@ function renderEditor() {
       '<div class="tag-editor" id="tagEditor">'+tagChips+
         '<input class="tag-input" id="tagInput" placeholder="+ tag" />'+
       '</div>'+
+      '<div class="due-date-row">'+
+        '<span class="due-date-label">DUE</span>'+
+        '<input type="date" class="due-date-input" id="dueDateInput"'+(note.dueDate?' value="'+note.dueDate+'"':'')+' />'+
+        (note.dueDate?'<button class="due-date-clear" id="dueDateClear" title="Clear due date">×</button>':'')+
+      '</div>'+
       '<div class="editor-statusrow">'+
         '<div class="status-line" id="statusLine">'+wc(note.body)+' words'+(statusText?' · '+statusText:'')+
         '</div>'+
@@ -1667,6 +1917,21 @@ function renderEditor() {
   document.getElementById("reminderBtn").addEventListener("click",function(){
     openReminderModal(note);
   });
+
+  // Due date
+  var dueDateInput=document.getElementById("dueDateInput");
+  dueDateInput.addEventListener("change",function(){
+    note.dueDate=dueDateInput.value||null;
+    note.updatedAt=Date.now();
+    scheduleSave(note); renderEditor();
+  });
+  var dueDateClear=document.getElementById("dueDateClear");
+  if(dueDateClear){
+    dueDateClear.addEventListener("click",function(){
+      note.dueDate=null; note.updatedAt=Date.now();
+      scheduleSave(note); renderEditor();
+    });
+  }
 }
 
 function renderStatus() {
@@ -1920,7 +2185,7 @@ document.addEventListener("keydown",function(e){
     var note=state.notes[state.selectedId];
     if(note){
       clearTimeout(saveTimers[note.id]);
-      api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags})})
+      api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky,dueDate:note.dueDate||null})})
         .then(function(){saveStatus[note.id]="saved"; renderStatus();})
         .catch(function(){saveStatus[note.id]="error"; renderStatus();});
     }
@@ -1956,6 +2221,320 @@ document.querySelectorAll(".info-tab").forEach(function(tab){
     donateCount.textContent = "Someone unforunately clicked this " + count + " times and donated! 😇";
   });
 })();
+
+// ===================== CALENDAR =====================
+var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function sameDay(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function dayKey(d) {
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function dateFromKey(k) { return new Date(k+"T00:00:00"); }
+
+function switchView(view) {
+  state.view = view;
+  var notesContent = document.getElementById("notesViewContent");
+  var calSide = document.getElementById("calSidePanel");
+  var editor = document.getElementById("editor");
+  var calMain = document.getElementById("calMain");
+
+  document.querySelectorAll(".view-tab").forEach(function(t){
+    t.classList.toggle("active", t.getAttribute("data-view")===view);
+  });
+
+  if(view === "calendar") {
+    notesContent.style.display = "none";
+    calSide.classList.remove("hidden");
+    editor.classList.add("hidden");
+    calMain.classList.remove("hidden");
+    // fetch all notes + reminders for calendar
+    Promise.all([
+      api("/api/notes?characterId=__all__"),
+      api("/api/reminders")
+    ]).then(function(results){
+      state.calAllNotes = {};
+      (results[0]||[]).forEach(function(n){ state.calAllNotes[n.id]=n; });
+      state.calReminders = results[1]||[];
+      renderCalendar();
+      renderCalSidePanel(state.calSelected);
+    });
+  } else {
+    notesContent.style.display = "";
+    calSide.classList.add("hidden");
+    editor.classList.remove("hidden");
+    calMain.classList.add("hidden");
+  }
+}
+
+// Build a map of dayKey → {notes:[], reminders:[]} for fast lookup
+function buildEventMap() {
+  var map = {};
+  function ensure(k){ if(!map[k]) map[k]={notes:[],reminders:[]}; return map[k]; }
+
+  Object.values(state.calAllNotes).forEach(function(n){
+    if(n.dueDate) ensure(n.dueDate).notes.push(n);
+  });
+  state.calReminders.forEach(function(r){
+    var d = new Date(r.fireAt);
+    var k = dayKey(d);
+    ensure(k).reminders.push(r);
+  });
+  return map;
+}
+
+function renderCalendar() {
+  // update title + nav
+  var a = state.calAnchor;
+  var titleEl = document.getElementById("calTitle");
+  if(state.calMode === "month") {
+    titleEl.textContent = MONTHS[a.getMonth()] + " " + a.getFullYear();
+    renderMonthGrid(buildEventMap());
+  } else {
+    // Week: find Monday of this week
+    var monday = new Date(a);
+    var day = monday.getDay()||7;
+    monday.setDate(monday.getDate()-(day-1));
+    var sunday = new Date(monday); sunday.setDate(sunday.getDate()+6);
+    titleEl.textContent = MONTHS[monday.getMonth()]+" "+monday.getDate()+" – "+(monday.getMonth()!==sunday.getMonth()?MONTHS[sunday.getMonth()]+" ":"")+sunday.getDate()+", "+sunday.getFullYear();
+    renderWeekGrid(monday, buildEventMap());
+  }
+  // sync mode buttons
+  document.querySelectorAll(".cal-mode-btn").forEach(function(b){
+    b.classList.toggle("active", b.getAttribute("data-mode")===state.calMode);
+  });
+}
+
+function renderMonthGrid(eventMap) {
+  var body = document.getElementById("calBody");
+  var a = state.calAnchor;
+  var today = new Date();
+
+  // Start of grid: Sunday of the week containing the 1st
+  var first = new Date(a.getFullYear(), a.getMonth(), 1);
+  var startOffset = first.getDay(); // 0=Sun
+  var gridStart = new Date(first); gridStart.setDate(1 - startOffset);
+
+  var rows = "";
+  // DOW header
+  var dowRow = '<div class="cal-dow-row">';
+  DOW.forEach(function(d){ dowRow += '<div class="cal-dow">'+d+'</div>'; });
+  dowRow += '</div>';
+
+  var cells = "";
+  for(var i=0; i<42; i++){
+    var d = new Date(gridStart); d.setDate(gridStart.getDate()+i);
+    var k = dayKey(d);
+    var events = eventMap[k]||{notes:[],reminders:[]};
+    var isToday = sameDay(d, today);
+    var isSelected = state.calSelected && sameDay(d, state.calSelected);
+    var isOther = d.getMonth() !== a.getMonth();
+
+    var cls = "cal-day";
+    if(isToday) cls += " today";
+    if(isSelected) cls += " selected";
+    if(isOther) cls += " other-month";
+
+    var pills = "";
+    events.notes.slice(0,2).forEach(function(n){
+      var char = state.characters.find(function(c){return c.id===n.characterId;});
+      var color = char ? char.color : "var(--teal)";
+      pills += '<div class="cal-event-pill due" style="border-left:2px solid '+color+'">'+esc(n.title||"Untitled")+'</div>';
+    });
+    events.reminders.slice(0,1).forEach(function(r){
+      pills += '<div class="cal-event-pill reminder">🔔 '+esc(r.noteTitle||"Reminder")+'</div>';
+    });
+    var total = events.notes.length + events.reminders.length;
+    var overflow = total > 3 ? '<div class="cal-overflow">+' + (total-3) + ' more</div>' : "";
+
+    cells += '<div class="'+cls+'" data-key="'+k+'"><div class="cal-day-num">'+d.getDate()+'</div><div class="cal-day-events">'+pills+overflow+'</div></div>';
+  }
+
+  body.innerHTML = '<div class="cal-month">'+dowRow+'<div class="cal-grid">'+cells+'</div></div>';
+
+  body.querySelectorAll(".cal-day").forEach(function(cell){
+    cell.addEventListener("click", function(){
+      state.calSelected = dateFromKey(cell.getAttribute("data-key"));
+      renderCalendar();
+      renderCalSidePanel(state.calSelected);
+    });
+  });
+  body.querySelectorAll(".cal-event-pill").forEach(function(pill){
+    pill.addEventListener("click", function(e){
+      e.stopPropagation();
+      state.calSelected = dateFromKey(pill.closest(".cal-day").getAttribute("data-key"));
+      renderCalendar();
+      renderCalSidePanel(state.calSelected);
+    });
+  });
+}
+
+function renderWeekGrid(monday, eventMap) {
+  var body = document.getElementById("calBody");
+  var today = new Date();
+
+  var headerCells = "";
+  var bodyCells = "";
+  for(var i=0; i<7; i++){
+    var d = new Date(monday); d.setDate(monday.getDate()+i);
+    var k = dayKey(d);
+    var events = eventMap[k]||{notes:[],reminders:[]};
+    var isToday = sameDay(d, today);
+    var isSelected = state.calSelected && sameDay(d, state.calSelected);
+
+    headerCells += '<div class="cal-week-col-head'+(isToday?" today":"")+'">'+
+      '<div class="cal-week-dow">'+DOW[d.getDay()]+'</div>'+
+      '<div class="cal-week-date">'+d.getDate()+'</div>'+
+    '</div>';
+
+    var evHtml = "";
+    events.notes.forEach(function(n){
+      var char = state.characters.find(function(c){return c.id===n.characterId;});
+      var color = char ? char.color : "var(--teal)";
+      evHtml += '<div class="cal-week-event due" data-note-id="'+n.id+'" style="border-left:2px solid '+color+'">'+esc(n.title||"Untitled")+'</div>';
+    });
+    events.reminders.forEach(function(r){
+      var t = new Date(r.fireAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+      evHtml += '<div class="cal-week-event reminder">🔔 '+t+' '+esc(r.noteTitle||"")+'</div>';
+    });
+
+    bodyCells += '<div class="cal-week-day'+(isSelected?" selected":"")+(isToday?" today":"")+'" data-key="'+k+'">'+evHtml+'</div>';
+  }
+
+  body.innerHTML = '<div class="cal-week">'+
+    '<div class="cal-week-header">'+headerCells+'</div>'+
+    '<div class="cal-week-body">'+bodyCells+'</div>'+
+  '</div>';
+
+  body.querySelectorAll(".cal-week-day").forEach(function(cell){
+    cell.addEventListener("click", function(){
+      state.calSelected = dateFromKey(cell.getAttribute("data-key"));
+      renderCalendar();
+      renderCalSidePanel(state.calSelected);
+    });
+  });
+  body.querySelectorAll(".cal-week-event.due[data-note-id]").forEach(function(ev){
+    ev.addEventListener("click", function(e){
+      e.stopPropagation();
+      var nid = ev.getAttribute("data-note-id");
+      // Switch to notes view and open the note
+      switchView("notes");
+      state.selectedId = nid;
+      render();
+      document.getElementById("app").classList.add("show-editor");
+    });
+  });
+}
+
+function renderCalSidePanel(date) {
+  var dateEl = document.getElementById("calSideDate");
+  var bodyEl = document.getElementById("calSideBody");
+  if(!date){ dateEl.textContent="Select a day"; bodyEl.innerHTML='<div class="cal-side-empty">Click a day to see its notes and reminders.</div>'; return; }
+
+  var k = dayKey(date);
+  var eventMap = buildEventMap();
+  var events = eventMap[k]||{notes:[],reminders:[]};
+  var tz = (state.user&&state.user.timezone)||"UTC";
+
+  dateEl.textContent = date.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+
+  var html = "";
+  if(events.notes.length){
+    html += '<div class="cal-side-section"><div class="cal-side-heading">Due notes</div>';
+    events.notes.forEach(function(n){
+      var char = state.characters.find(function(c){return c.id===n.characterId;});
+      var color = char ? char.color : "var(--teal)";
+      html += '<div class="cal-side-item" data-note-id="'+n.id+'" style="border-left-color:'+color+'">'+
+        '<div class="cal-side-item-title">'+esc(n.title||"Untitled")+'</div>'+
+        '<div class="cal-side-item-meta">'+(char?esc(char.name):"No character")+(n.tags&&n.tags.length?" · #"+n.tags.slice(0,2).join(" #"):"")+'</div>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
+  if(events.reminders.length){
+    html += '<div class="cal-side-section"><div class="cal-side-heading">Reminders</div>';
+    events.reminders.forEach(function(r){
+      var t = new Date(r.fireAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",timeZone:tz});
+      html += '<div class="cal-side-item reminder-item">'+
+        '<div class="cal-side-item-title">🔔 '+esc(r.noteTitle||"Reminder")+'</div>'+
+        '<div class="cal-side-item-meta">'+t+(r.repeat?" · repeating":"")+'</div>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
+  if(!events.notes.length && !events.reminders.length){
+    html = '<div class="cal-side-empty">Nothing scheduled for this day.</div>';
+  }
+  bodyEl.innerHTML = html;
+
+  // Click note → jump to it
+  bodyEl.querySelectorAll(".cal-side-item[data-note-id]").forEach(function(item){
+    item.addEventListener("click", function(){
+      var nid = item.getAttribute("data-note-id");
+      switchView("notes");
+      state.selectedId = nid;
+      render();
+      document.getElementById("app").classList.add("show-editor");
+    });
+  });
+}
+
+// Wire up calendar controls
+document.querySelectorAll(".view-tab").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    switchView(btn.getAttribute("data-view"));
+  });
+});
+
+document.getElementById("calPrev").addEventListener("click", function(){
+  var a = state.calAnchor;
+  if(state.calMode==="month"){
+    state.calAnchor = new Date(a.getFullYear(), a.getMonth()-1, 1);
+  } else {
+    var d = new Date(a); d.setDate(d.getDate()-7);
+    state.calAnchor = d;
+  }
+  renderCalendar();
+});
+document.getElementById("calNext").addEventListener("click", function(){
+  var a = state.calAnchor;
+  if(state.calMode==="month"){
+    state.calAnchor = new Date(a.getFullYear(), a.getMonth()+1, 1);
+  } else {
+    var d = new Date(a); d.setDate(d.getDate()+7);
+    state.calAnchor = d;
+  }
+  renderCalendar();
+});
+document.getElementById("calToday").addEventListener("click", function(){
+  state.calAnchor = new Date();
+  state.calSelected = new Date();
+  renderCalendar();
+  renderCalSidePanel(state.calSelected);
+});
+document.querySelectorAll(".cal-mode-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    state.calMode = btn.getAttribute("data-mode");
+    renderCalendar();
+  });
+});
+document.getElementById("calSideAddNote").addEventListener("click", function(){
+  if(!state.calSelected) return;
+  var k = dayKey(state.calSelected);
+  switchView("notes");
+  var charId = state.characterId==="__all__" ? null : state.characterId;
+  api("/api/notes",{method:"POST",body:JSON.stringify({title:"",body:"",tags:[],characterId:charId,dueDate:k})})
+    .then(function(note){
+      state.notes[note.id]=note;
+      state.selectedId=note.id;
+      render();
+      document.getElementById("app").classList.add("show-editor");
+      var el=document.getElementById("titleInput");
+      if(el) el.focus();
+    });
+});
 
 boot();
 })();

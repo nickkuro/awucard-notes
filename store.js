@@ -141,6 +141,7 @@ function createNote(ownerId, partial) {
     body: partial.body || "",
     tags: Array.isArray(partial.tags) ? partial.tags : [],
     sticky: Boolean(partial.sticky),
+    dueDate: partial.dueDate || null,
     createdAt: now,
     updatedAt: now
   };
@@ -156,6 +157,7 @@ function updateNote(ownerId, id, partial) {
   if (typeof partial.body === "string") note.body = partial.body;
   if (Array.isArray(partial.tags)) note.tags = partial.tags;
   if (typeof partial.sticky === "boolean") note.sticky = partial.sticky;
+  if ("dueDate" in partial) note.dueDate = partial.dueDate || null;
   note.updatedAt = Date.now();
   return persist().then(() => note);
 }
