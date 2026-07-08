@@ -11,7 +11,7 @@ let writeQueue = Promise.resolve();
 function ensureFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ users:{}, characters:{}, notes:{}, reminders:{}, bills:{} }, null, 2));
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ users: {}, characters: {}, notes: {}, reminders: {} }, null, 2));
   }
 }
 
@@ -23,7 +23,6 @@ function load() {
   if (!cache.characters) cache.characters = {};
   if (!cache.notes) cache.notes = {};
   if (!cache.reminders) cache.reminders = {};
-  if (!cache.bills) cache.bills = {};
   return cache;
 }
 
@@ -75,14 +74,14 @@ function updateUserTimezone(id, timezone) {
 function listCharacters(ownerId) {
   const db = load();
   return Object.values(db.characters)
-    .filter(c => c.ownerId === ownerId)
+    .filter((c) => c.ownerId === ownerId)
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 function createCharacter(ownerId, partial) {
   const db = load();
   const id = uid();
-  const character = { id, ownerId, name: (partial.name||"").slice(0,64), color: partial.color||"#e8a33d", createdAt: Date.now() };
+  const character = { id, ownerId, name: (partial.name || "").slice(0, 64), color: partial.color || "#e8a33d", createdAt: Date.now() };
   db.characters[id] = character;
   return persist().then(() => character);
 }
@@ -101,7 +100,7 @@ function deleteCharacter(ownerId, id) {
   const c = db.characters[id];
   if (!c || c.ownerId !== ownerId) return Promise.resolve(false);
   delete db.characters[id];
-  Object.keys(db.notes).forEach(nid => {
+  Object.keys(db.notes).forEach((nid) => {
     if (db.notes[nid].characterId === id && db.notes[nid].ownerId === ownerId) delete db.notes[nid];
   });
   return persist().then(() => true);
@@ -110,11 +109,17 @@ function deleteCharacter(ownerId, id) {
 // ---------- notes ----------
 function listNotes(ownerId, characterId) {
   const db = load();
-  return Object.values(db.notes).filter(n => {
-    if (n.ownerId !== ownerId) return false;
-    if (characterId === "__all__") return true;
-    return (n.characterId || null) === (characterId || null);
-  });
+  const requestedCharacterId = characterId || null;
+  return Object.values(db.notes)
+    .filter((n) => n.ownerId === ownerId)
+    .filter((n) => {
+      if (characterId === "__all__") return true;
+      return n.sticky || (n.characterId || null) === requestedCharacterId;
+    })
+    .sort((a, b) => {
+      if (a.sticky !== b.sticky) return a.sticky ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
 }
 
 function getNote(ownerId, id) {
@@ -129,14 +134,16 @@ function createNote(ownerId, partial) {
   const id = uid();
   const now = Date.now();
   const note = {
-    id, ownerId,
+    id,
+    ownerId,
     characterId: partial.characterId || null,
     title: partial.title || "",
     body: partial.body || "",
     tags: Array.isArray(partial.tags) ? partial.tags : [],
     sticky: Boolean(partial.sticky),
     dueDate: partial.dueDate || null,
-    createdAt: now, updatedAt: now
+    createdAt: now,
+    updatedAt: now
   };
   db.notes[id] = note;
   return persist().then(() => note);
@@ -160,7 +167,8 @@ function deleteNote(ownerId, id) {
   const note = db.notes[id];
   if (!note || note.ownerId !== ownerId) return Promise.resolve(false);
   delete db.notes[id];
-  Object.keys(db.reminders).forEach(rid => {
+  // Delete associated reminders
+  Object.keys(db.reminders).forEach((rid) => {
     if (db.reminders[rid].noteId === id) delete db.reminders[rid];
   });
   return persist().then(() => true);
@@ -168,12 +176,12 @@ function deleteNote(ownerId, id) {
 
 function clearNotes(ownerId, characterId) {
   const db = load();
-  Object.keys(db.notes).forEach(id => {
+  Object.keys(db.notes).forEach((id) => {
     const n = db.notes[id];
     if (n.ownerId !== ownerId) return;
     if (characterId === "__all__" || (n.characterId || null) === (characterId || null)) {
       delete db.notes[id];
-      Object.keys(db.reminders).forEach(rid => {
+      Object.keys(db.reminders).forEach((rid) => {
         if (db.reminders[rid].noteId === id) delete db.reminders[rid];
       });
     }
@@ -185,33 +193,34 @@ function clearNotes(ownerId, characterId) {
 function listReminders(ownerId) {
   const db = load();
   return Object.values(db.reminders)
-    .filter(r => r.ownerId === ownerId)
+    .filter((r) => r.ownerId === ownerId)
     .sort((a, b) => a.fireAt - b.fireAt);
 }
 
 function listRemindersForNote(ownerId, noteId) {
   const db = load();
   return Object.values(db.reminders)
-    .filter(r => r.ownerId === ownerId && r.noteId === noteId)
+    .filter((r) => r.ownerId === ownerId && r.noteId === noteId)
     .sort((a, b) => a.fireAt - b.fireAt);
 }
 
 function getDueReminders() {
   const db = load();
   const now = Date.now();
-  return Object.values(db.reminders).filter(r => r.fireAt <= now);
+  return Object.values(db.reminders).filter((r) => r.fireAt <= now);
 }
 
 function createReminder(ownerId, partial) {
   const db = load();
   const id = uid();
   const reminder = {
-    id, ownerId,
+    id,
+    ownerId,
     noteId: partial.noteId,
     noteTitle: partial.noteTitle || "",
     fireAt: partial.fireAt,
     repeat: partial.repeat || false,
-    repeatInterval: partial.repeatInterval || null,
+    repeatInterval: partial.repeatInterval || null, // ms
     createdAt: Date.now()
   };
   db.reminders[id] = reminder;
@@ -233,105 +242,9 @@ function deleteReminder(id) {
   return persist().then(() => true);
 }
 
-// ---------- bills (admin only) ----------
-function advanceDueDate(dateStr, frequency) {
-  const d = new Date(dateStr + "T00:00:00");
-  switch (frequency) {
-    case "weekly":    d.setDate(d.getDate() + 7); break;
-    case "biweekly":  d.setDate(d.getDate() + 14); break;
-    case "monthly":   d.setMonth(d.getMonth() + 1); break;
-    case "quarterly": d.setMonth(d.getMonth() + 3); break;
-    case "yearly":    d.setFullYear(d.getFullYear() + 1); break;
-  }
-  return d.toISOString().slice(0, 10);
-}
-
-function listBills() {
-  const db = load();
-  return Object.values(db.bills).sort((a, b) => {
-    // Unpaid/overdue first, then by due date
-    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
-    if (a.dueDate) return -1;
-    if (b.dueDate) return 1;
-    return (a.name||"").localeCompare(b.name||"");
-  });
-}
-
-function getBill(id) {
-  const db = load();
-  return db.bills[id] || null;
-}
-
-function createBill(partial) {
-  const db = load();
-  const id = uid();
-  const bill = {
-    id,
-    name:         partial.name || "New bill",
-    amount:       parseFloat(partial.amount) || 0,
-    currency:     partial.currency || "CAD",
-    dueDate:      partial.dueDate || null,
-    frequency:    partial.frequency || "monthly",
-    category:     partial.category || "Other",
-    autoPay:      Boolean(partial.autoPay),
-    url:          partial.url || "",
-    color:        partial.color || "#c9605a",
-    notes:        partial.notes || "",
-    reminderDays: partial.reminderDays != null ? Number(partial.reminderDays) : null,
-    paid:         false,
-    paidDates:    [],
-    createdAt:    Date.now()
-  };
-  db.bills[id] = bill;
-  return persist().then(() => bill);
-}
-
-function updateBill(id, partial) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill) return Promise.resolve(null);
-  const fields = ["name","amount","currency","dueDate","frequency","category","autoPay","url","color","notes","reminderDays","paid"];
-  fields.forEach(f => { if (f in partial) bill[f] = partial[f]; });
-  if (typeof bill.amount === "string") bill.amount = parseFloat(bill.amount) || 0;
-  return persist().then(() => bill);
-}
-
-function markBillPaid(id) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill) return Promise.resolve(null);
-  const today = new Date().toISOString().slice(0, 10);
-  if (!bill.paidDates) bill.paidDates = [];
-  bill.paidDates.unshift(today); // newest first
-  if (bill.frequency === "one-time") {
-    bill.paid = true;
-  } else if (bill.dueDate) {
-    // Advance to next due date and reset paid
-    bill.dueDate = advanceDueDate(bill.dueDate, bill.frequency);
-    bill.paid = false;
-  }
-  return persist().then(() => bill);
-}
-
-function markBillUnpaid(id) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill) return Promise.resolve(null);
-  bill.paid = false;
-  return persist().then(() => bill);
-}
-
-function deleteBill(id) {
-  const db = load();
-  if (!db.bills[id]) return Promise.resolve(false);
-  delete db.bills[id];
-  return persist().then(() => true);
-}
-
 module.exports = {
   upsertUser, getUser, updateUserTimezone,
   listCharacters, createCharacter, updateCharacter, deleteCharacter,
   listNotes, getNote, createNote, updateNote, deleteNote, clearNotes,
-  listReminders, listRemindersForNote, getDueReminders, createReminder, rescheduleReminder, deleteReminder,
-  listBills, getBill, createBill, updateBill, markBillPaid, markBillUnpaid, deleteBill
+  listReminders, listRemindersForNote, getDueReminders, createReminder, rescheduleReminder, deleteReminder
 };
