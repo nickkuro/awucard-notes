@@ -660,7 +660,146 @@ kbd {
 }
 .cal-event-pill.due { background: rgba(79,168,160,0.18); color: var(--teal); }
 .cal-event-pill.reminder { background: rgba(232,163,61,0.18); color: var(--amber); }
+.cal-event-pill.bill-upcoming { background: rgba(201,96,90,0.15); color: var(--danger); }
+.cal-event-pill.bill-overdue { background: rgba(201,96,90,0.35); color: var(--danger); font-weight: 600; }
+.cal-event-pill.bill-paid { background: rgba(111,191,115,0.15); color: var(--green); }
 .cal-overflow { font-size: 10px; color: var(--ink-dim); padding-left: 5px; margin-top: 1px; }
+
+/* ===================== BILLS ===================== */
+/* bill sidebar list */
+.bill-list { flex: 1; overflow-y: auto; padding: 4px 12px 12px; }
+.bill-card {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-left: 4px solid var(--border); border-radius: 5px;
+  padding: 10px 12px; margin-bottom: 7px; cursor: pointer;
+  transition: border-color 0.15s;
+}
+.bill-card:hover { background: var(--surface-hi); }
+.bill-card.active { background: var(--surface-hi); border-color: var(--accent); box-shadow: 0 2px 10px var(--shadow); }
+.bill-card.overdue { border-left-color: var(--danger); }
+.bill-card.paid { border-left-color: var(--green); opacity: 0.7; }
+.bill-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; gap: 8px; }
+.bill-card-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.bill-card-amount { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.bill-card-meta { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--ink-mid); }
+.bill-card-due { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+.bill-card-due.overdue { color: var(--danger); font-weight: 600; }
+.bill-card-badges { display: flex; gap: 4px; }
+.bill-badge {
+  font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 1px 5px;
+  border-radius: 3px; border: 1px solid var(--border); color: var(--ink-dim);
+  white-space: nowrap;
+}
+.bill-badge.autopay { color: var(--teal); border-color: rgba(79,168,160,0.4); }
+.bill-badge.freq { color: var(--ink-dim); }
+.bill-pay-btn {
+  font-size: 11px; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+  font-family: 'IBM Plex Mono', monospace; border: 1px solid var(--border);
+  color: var(--ink-mid); flex-shrink: 0;
+}
+.bill-pay-btn:hover { border-color: var(--green); color: var(--green); }
+.bill-pay-btn.paid { color: var(--green); border-color: rgba(111,191,115,0.4); }
+.bill-add-btn {
+  margin: 0 12px 12px; padding: 9px; border-radius: 6px;
+  background: var(--accent); color: var(--accent-ink);
+  font-weight: 600; font-size: 13px; width: calc(100% - 24px);
+}
+.bill-add-btn:hover { filter: brightness(1.06); }
+.bill-sidebar-empty { padding: 28px 12px; color: var(--ink-dim); font-size: 13px; text-align: center; line-height: 1.6; }
+
+/* bill main editor */
+.bill-main {
+  flex: 1; display: flex; flex-direction: column; height: 100vh; min-width: 0;
+}
+.bill-editor-placeholder {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--ink-dim); font-size: 14px; text-align: center; padding: 30px;
+}
+.bill-editor {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+.bill-editor-head {
+  padding: 14px 26px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.bill-editor-toprow {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.bill-name-input {
+  flex: 1; font-size: 22px; font-weight: 600; background: none; min-width: 0;
+}
+.bill-name-input::placeholder { color: var(--ink-dim); font-weight: 400; }
+.bill-editor-actions { display: flex; gap: 8px; }
+.bill-action-btn {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 5px 12px;
+  border-radius: 5px; border: 1px solid var(--border); color: var(--ink-mid);
+}
+.bill-action-btn:hover { color: var(--ink); border-color: var(--accent); }
+.bill-action-btn.pay-now { border-color: var(--green); color: var(--green); font-weight: 600; }
+.bill-action-btn.pay-now:hover { background: rgba(111,191,115,0.1); }
+.bill-action-btn.unpay { border-color: var(--ink-dim); color: var(--ink-dim); }
+.bill-action-btn.del { border-color: transparent; }
+.bill-action-btn.del:hover { color: var(--danger); border-color: var(--danger); }
+
+/* bill form fields */
+.bill-editor-body { flex: 1; overflow-y: auto; padding: 18px 26px 40px; }
+.bill-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
+  max-width: 620px;
+}
+.bill-field { display: flex; flex-direction: column; gap: 5px; }
+.bill-field.full { grid-column: 1 / -1; }
+.bill-field label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; color: var(--ink-dim); text-transform: uppercase;
+}
+.bill-field input[type=text],
+.bill-field input[type=number],
+.bill-field input[type=date],
+.bill-field input[type=url],
+.bill-field select,
+.bill-field textarea {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 7px 10px; font-size: 13.5px;
+  color: var(--ink); font-family: inherit; width: 100%;
+}
+.bill-field input:focus, .bill-field select:focus, .bill-field textarea:focus {
+  border-color: var(--accent); outline: none;
+}
+.bill-field textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+.bill-amount-row { display: flex; gap: 8px; }
+.bill-amount-row input { flex: 1; }
+.bill-amount-row select { width: 80px; flex-shrink: 0; }
+.bill-toggle-row { display: flex; align-items: center; gap: 10px; }
+.bill-toggle-row label { font-size: 13px; color: var(--ink-mid); cursor: pointer; font-family: inherit; text-transform: none; letter-spacing: 0; }
+.bill-toggle-row input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+.bill-color-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.bill-color-swatch {
+  width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; transition: transform 0.1s;
+}
+.bill-color-swatch:hover { transform: scale(1.15); }
+.bill-color-swatch.selected { border-color: var(--ink); }
+
+/* payment history */
+.bill-history { margin-top: 22px; max-width: 620px; }
+.bill-history-title {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;
+  color: var(--ink-dim); text-transform: uppercase;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 10px;
+}
+.bill-history-empty { font-size: 13px; color: var(--ink-dim); font-style: italic; }
+.bill-history-item {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  color: var(--ink-mid); padding: 5px 0; border-bottom: 1px solid var(--border);
+}
+.bill-history-item:last-child { border-bottom: none; }
+.bill-history-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+/* status badge on bill side panel */
+.bill-status-overdue { color: var(--danger); font-weight: 600; }
+.bill-status-paid { color: var(--green); }
+.bill-status-upcoming { color: var(--amber); }
 
 /* week view */
 .cal-week { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
@@ -812,12 +951,16 @@ kbd {
     <!-- VIEW TABS -->
     <div class="view-tabs">
       <button class="view-tab active" id="tabNotes" data-view="notes">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         Notes
       </button>
       <button class="view-tab" id="tabCalendar" data-view="calendar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Calendar
+      </button>
+      <button class="view-tab hidden" id="tabBills" data-view="bills">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        Bills
       </button>
     </div>
 
@@ -854,7 +997,11 @@ kbd {
     <div class="tag-row" id="tagRow"></div>
     <div class="note-list" id="noteList"></div>
 
-    </div><!-- end notesViewContent -->
+    <!-- BILLS SIDEBAR -->
+    <div id="billsViewContent" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="bill-list" id="billList"></div>
+      <button class="bill-add-btn" id="addBillBtn">+ Add bill</button>
+    </div>
 
     <!-- CALENDAR SIDE PANEL -->
     <div id="calSidePanel" class="cal-side hidden">
@@ -899,6 +1046,12 @@ kbd {
       </div>
     </div>
     <div class="cal-body" id="calBody"></div>
+  </div>
+
+  <!-- BILLS MAIN VIEW -->
+  <div class="bill-main hidden" id="billMain">
+    <div class="bill-editor-placeholder" id="billPlaceholder">Select a bill or add a new one.</div>
+    <div class="bill-editor hidden" id="billEditor"></div>
   </div>
 
 <!-- REMINDER MODAL -->
@@ -1066,7 +1219,7 @@ kbd {
         </div>
         <div class="info-item">
           <div class="info-item-title">Calendar</div>
-          <div class="info-item-body">Switch to the Calendar tab in the sidebar to see a month or week view of your notes and reminders. Days with due notes show coloured pills (matching the character's colour), and reminder days show an amber badge. Click any day to see its events in the sidebar panel and jump to the linked note. You can also create a note directly from the calendar with the due date pre-filled. <b>Note:</b> Mobile functionality is limited at this time.</div>
+          <div class="info-item-body">Switch to the Calendar tab in the sidebar to see a month or week view of your notes and reminders. Days with due notes show coloured pills (matching the character's colour), and reminder days show an amber badge. Click any day to see its events in the sidebar panel and jump to the linked note. You can also create a note directly from the calendar with the due date pre-filled.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Due dates</div>
@@ -1125,7 +1278,7 @@ kbd {
         <div class="cl-entry">
           <div class="cl-version">v2.0</div>
           <div class="cl-items">
-            <div class="cl-item new">Calendar — full month and week views accessible via a new tab in the sidebar. Days with due notes or reminders show coloured pills. <b>It's functionality is extremely limited on mobile. Will be fixed in the future.</b></div>
+            <div class="cl-item new">Calendar — full month and week views accessible via a new tab in the sidebar. Days with due notes or reminders show coloured pills.</div>
             <div class="cl-item new">Due dates on notes — set a date from the editor and it appears on the calendar automatically.</div>
             <div class="cl-item new">Day detail panel — click any calendar day to see all its due notes and reminders in the sidebar, each clickable to jump straight to the note.</div>
             <div class="cl-item new">"Note for this day" shortcut — creates a new note from the calendar with the due date pre-filled.</div>
@@ -1267,6 +1420,7 @@ var TAG_PALETTE = ["#e8a33d","#4fa8a0","#c97b8e","#7c8cc9","#9bb05a","#cf9bd6"];
 var state = {
   theme: localStorage.getItem("ledger-theme") || "dark",
   user: null,
+  isAdmin: false,
   characters: [],
   characterId: "__all__",
   notes: {},
@@ -1278,7 +1432,9 @@ var state = {
   calAnchor: new Date(),
   calSelected: null,
   calReminders: [],
-  calAllNotes: {}
+  calAllNotes: {},
+  bills: [],
+  selectedBillId: null
 };
 
 var saveTimers = {};
@@ -1336,6 +1492,10 @@ function showApp() {
 function boot() {
   api("/api/me").then(function(user){
     state.user=user;
+    state.isAdmin=user.isAdmin===true;
+    if(state.isAdmin){
+      document.getElementById("tabBills").classList.remove("hidden");
+    }
     return api("/api/characters");
   }).then(function(chars){
     state.characters=chars||[];
@@ -2244,51 +2404,70 @@ function dateFromKey(k) { return new Date(k+"T00:00:00"); }
 function switchView(view) {
   state.view = view;
   var notesContent = document.getElementById("notesViewContent");
+  var billsContent = document.getElementById("billsViewContent");
   var calSide = document.getElementById("calSidePanel");
   var editor = document.getElementById("editor");
   var calMain = document.getElementById("calMain");
+  var billMain = document.getElementById("billMain");
 
   document.querySelectorAll(".view-tab").forEach(function(t){
     t.classList.toggle("active", t.getAttribute("data-view")===view);
   });
 
+  // Hide everything first
+  notesContent.style.display = "none";
+  billsContent.style.display = "none";
+  calSide.classList.add("hidden");
+  editor.classList.add("hidden");
+  calMain.classList.add("hidden");
+  billMain.classList.add("hidden");
+
   if(view === "calendar") {
-    notesContent.style.display = "none";
     calSide.classList.remove("hidden");
-    editor.classList.add("hidden");
     calMain.classList.remove("hidden");
-    // fetch all notes + reminders for calendar
-    Promise.all([
+    var fetches = [
       api("/api/notes?characterId=__all__"),
       api("/api/reminders")
-    ]).then(function(results){
+    ];
+    if(state.isAdmin) fetches.push(api("/api/bills"));
+    Promise.all(fetches).then(function(results){
       state.calAllNotes = {};
       (results[0]||[]).forEach(function(n){ state.calAllNotes[n.id]=n; });
       state.calReminders = results[1]||[];
+      if(state.isAdmin) state.bills = results[2]||[];
       renderCalendar();
       renderCalSidePanel(state.calSelected);
     });
+  } else if(view === "bills") {
+    billsContent.style.display = "flex";
+    billMain.classList.remove("hidden");
+    api("/api/bills").then(function(bills){
+      state.bills = bills||[];
+      renderBillList();
+    });
   } else {
     notesContent.style.display = "";
-    calSide.classList.add("hidden");
     editor.classList.remove("hidden");
-    calMain.classList.add("hidden");
   }
 }
 
-// Build a map of dayKey → {notes:[], reminders:[]} for fast lookup
+// Build a map of dayKey → {notes:[], reminders:[], bills:[]} for fast lookup
 function buildEventMap() {
   var map = {};
-  function ensure(k){ if(!map[k]) map[k]={notes:[],reminders:[]}; return map[k]; }
+  function ensure(k){ if(!map[k]) map[k]={notes:[],reminders:[],bills:[]}; return map[k]; }
 
   Object.values(state.calAllNotes).forEach(function(n){
     if(n.dueDate) ensure(n.dueDate).notes.push(n);
   });
   state.calReminders.forEach(function(r){
-    var d = new Date(r.fireAt);
-    var k = dayKey(d);
+    var k = dayKey(new Date(r.fireAt));
     ensure(k).reminders.push(r);
   });
+  if(state.isAdmin) {
+    (state.bills||[]).forEach(function(b){
+      if(b.dueDate) ensure(b.dueDate).bills.push(b);
+    });
+  }
   return map;
 }
 
@@ -2353,7 +2532,12 @@ function renderMonthGrid(eventMap) {
     events.reminders.slice(0,1).forEach(function(r){
       pills += '<div class="cal-event-pill reminder">🔔 '+esc(r.noteTitle||"Reminder")+'</div>';
     });
-    var total = events.notes.length + events.reminders.length;
+    (events.bills||[]).slice(0,2).forEach(function(b){
+      var today2 = new Date().toISOString().slice(0,10);
+      var cls2 = b.paid ? "bill-paid" : (b.dueDate < today2 ? "bill-overdue" : "bill-upcoming");
+      pills += '<div class="cal-event-pill '+cls2+'">💳 '+esc(b.name)+'</div>';
+    });
+    var total = events.notes.length + events.reminders.length + (events.bills||[]).length;
     var overflow = total > 3 ? '<div class="cal-overflow">+' + (total-3) + ' more</div>' : "";
 
     cells += '<div class="'+cls+'" data-key="'+k+'"><div class="cal-day-num">'+d.getDate()+'</div><div class="cal-day-events">'+pills+overflow+'</div></div>';
@@ -2455,8 +2639,9 @@ function renderCalSidePanel(date) {
 
   var k = dayKey(date);
   var eventMap = buildEventMap();
-  var events = eventMap[k]||{notes:[],reminders:[]};
+  var events = eventMap[k]||{notes:[],reminders:[],bills:[]};
   var tz = (state.user&&state.user.timezone)||"UTC";
+  var todayStr = new Date().toISOString().slice(0,10);
 
   dateEl.textContent = date.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 
@@ -2473,6 +2658,19 @@ function renderCalSidePanel(date) {
     });
     html += '</div>';
   }
+  if((events.bills||[]).length){
+    html += '<div class="cal-side-section"><div class="cal-side-heading">Bills due</div>';
+    events.bills.forEach(function(b){
+      var isOverdue = !b.paid && b.dueDate < todayStr;
+      var statusCls = b.paid ? "bill-status-paid" : (isOverdue ? "bill-status-overdue" : "bill-status-upcoming");
+      var statusLabel = b.paid ? "✅ Paid" : (isOverdue ? "⚠ Overdue" : "Due");
+      html += '<div class="cal-side-item" data-bill-id="'+b.id+'" style="border-left-color:'+b.color+'">'+
+        '<div class="cal-side-item-title">💳 '+esc(b.name)+'</div>'+
+        '<div class="cal-side-item-meta"><span class="'+statusCls+'">'+statusLabel+'</span> · '+b.currency+' $'+Number(b.amount).toFixed(2)+'</div>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
   if(events.reminders.length){
     html += '<div class="cal-side-section"><div class="cal-side-heading">Reminders</div>';
     events.reminders.forEach(function(r){
@@ -2484,7 +2682,7 @@ function renderCalSidePanel(date) {
     });
     html += '</div>';
   }
-  if(!events.notes.length && !events.reminders.length){
+  if(!events.notes.length && !events.reminders.length && !(events.bills||[]).length){
     html = '<div class="cal-side-empty">Nothing scheduled for this day.</div>';
   }
   bodyEl.innerHTML = html;
@@ -2551,9 +2749,360 @@ document.getElementById("calSideAddNote").addEventListener("click", function(){
       state.selectedId=note.id;
       render();
       document.getElementById("app").classList.add("show-editor");
+    });
+  });
+  // Click bill in side panel → jump to bills view
+  bodyEl.querySelectorAll(".cal-side-item[data-bill-id]").forEach(function(item){
+    item.addEventListener("click", function(){
+      var bid = item.getAttribute("data-bill-id");
+      state.selectedBillId = bid;
+      switchView("bills");
+    });
+  });
+}
+
+// Wire up calendar controls
+document.querySelectorAll(".view-tab").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    switchView(btn.getAttribute("data-view"));
+  });
+});
+
+document.getElementById("calPrev").addEventListener("click", function(){
+  var a = state.calAnchor;
+  if(state.calMode==="month"){
+    state.calAnchor = new Date(a.getFullYear(), a.getMonth()-1, 1);
+  } else {
+    var d = new Date(a); d.setDate(d.getDate()-7);
+    state.calAnchor = d;
+  }
+  renderCalendar();
+});
+document.getElementById("calNext").addEventListener("click", function(){
+  var a = state.calAnchor;
+  if(state.calMode==="month"){
+    state.calAnchor = new Date(a.getFullYear(), a.getMonth()+1, 1);
+  } else {
+    var d = new Date(a); d.setDate(d.getDate()+7);
+    state.calAnchor = d;
+  }
+  renderCalendar();
+});
+document.getElementById("calToday").addEventListener("click", function(){
+  state.calAnchor = new Date();
+  state.calSelected = new Date();
+  renderCalendar();
+  renderCalSidePanel(state.calSelected);
+});
+document.querySelectorAll(".cal-mode-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    state.calMode = btn.getAttribute("data-mode");
+    renderCalendar();
+  });
+});
+document.getElementById("calSideAddNote").addEventListener("click", function(){
+  if(!state.calSelected) return;
+  var k = dayKey(state.calSelected);
+  switchView("notes");
+  var charId = state.characterId==="__all__" ? null : state.characterId;
+  api("/api/notes",{method:"POST",body:JSON.stringify({title:"",body:"",tags:[],characterId:charId,dueDate:k})})
+    .then(function(note){
+      state.notes[note.id]=note;
+      state.selectedId=note.id;
+      render();
+      document.getElementById("app").classList.add("show-editor");
       var el=document.getElementById("titleInput");
       if(el) el.focus();
     });
+});
+
+// ===================== BILLS =====================
+var BILL_COLORS = ["#c9605a","#e8a33d","#4fa8a0","#7c8cc9","#9bb05a","#cf9bd6","#e07b54","#5fa8d4"];
+var BILL_CATEGORIES = ["Housing","Utilities","Entertainment","Insurance","Subscriptions","Food","Transport","Health","Other"];
+var BILL_FREQS = [
+  {val:"one-time",  label:"One-time"},
+  {val:"weekly",    label:"Weekly"},
+  {val:"biweekly",  label:"Bi-weekly"},
+  {val:"monthly",   label:"Monthly"},
+  {val:"quarterly", label:"Quarterly"},
+  {val:"yearly",    label:"Yearly"}
+];
+var BILL_CURRENCIES = ["CAD","USD","EUR","GBP","AUD","NZD","CHF","JPY","SEK","NOK","DKK"];
+
+function billStatus(b) {
+  var today = new Date().toISOString().slice(0,10);
+  if(b.paid) return "paid";
+  if(b.dueDate && b.dueDate < today) return "overdue";
+  return "upcoming";
+}
+
+function renderBillList() {
+  var list = document.getElementById("billList");
+  var placeholder = document.getElementById("billPlaceholder");
+  var editor = document.getElementById("billEditor");
+
+  if(!state.bills.length){
+    list.innerHTML = '<div class="bill-sidebar-empty">No bills yet.<br>Add one below.</div>';
+  } else {
+    var today = new Date().toISOString().slice(0,10);
+    list.innerHTML = state.bills.map(function(b){
+      var status = billStatus(b);
+      var cardCls = "bill-card" + (b.id===state.selectedBillId?" active":"") + (status==="overdue"?" overdue":status==="paid"?" paid":"");
+      var dueLbl = b.dueDate ? b.dueDate : "No date";
+      var dueCls = status==="overdue" ? " overdue" : "";
+      var payBtnCls = status==="paid" ? " paid" : "";
+      var payBtnLbl = status==="paid" ? "✓ Paid" : "Pay";
+      var freqBadge = b.frequency!=="one-time" ? '<span class="bill-badge freq">'+b.frequency+'</span>' : "";
+      var autoBadge = b.autoPay ? '<span class="bill-badge autopay">auto</span>' : "";
+      return '<div class="'+cardCls+'" data-bill-id="'+b.id+'" style="border-left-color:'+b.color+'">'+
+        '<div class="bill-card-header">'+
+          '<span class="bill-card-name">'+esc(b.name)+'</span>'+
+          '<span class="bill-card-amount">'+b.currency+' $'+Number(b.amount).toFixed(2)+'</span>'+
+        '</div>'+
+        '<div class="bill-card-meta">'+
+          '<span class="bill-card-due'+dueCls+'">'+dueLbl+'</span>'+
+          '<div class="bill-card-badges">'+freqBadge+autoBadge+
+            '<button class="bill-pay-btn'+payBtnCls+'" data-pay-id="'+b.id+'">'+payBtnLbl+'</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join("");
+
+    list.querySelectorAll(".bill-card").forEach(function(card){
+      card.addEventListener("click", function(e){
+        if(e.target.closest("[data-pay-id]")) return;
+        state.selectedBillId = card.getAttribute("data-bill-id");
+        renderBillList();
+        renderBillEditor();
+      });
+    });
+    list.querySelectorAll("[data-pay-id]").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var id = btn.getAttribute("data-pay-id");
+        var bill = state.bills.find(function(b){return b.id===id;});
+        if(!bill) return;
+        var isPaid = billStatus(bill)==="paid";
+        var endpoint = isPaid ? "/api/bills/"+id+"/unpay" : "/api/bills/"+id+"/pay";
+        api(endpoint, {method:"POST"}).then(function(updated){
+          var idx = state.bills.findIndex(function(b){return b.id===id;});
+          if(idx>-1) state.bills[idx]=updated;
+          if(state.selectedBillId===id) renderBillEditor();
+          renderBillList();
+          showToast(isPaid ? "Marked unpaid" : "Marked paid ✓");
+        });
+      });
+    });
+  }
+
+  // Show/hide editor
+  if(state.selectedBillId && state.bills.find(function(b){return b.id===state.selectedBillId;})){
+    placeholder.classList.add("hidden");
+    editor.classList.remove("hidden");
+    renderBillEditor();
+  } else {
+    placeholder.classList.remove("hidden");
+    editor.classList.add("hidden");
+  }
+}
+
+function renderBillEditor() {
+  var bill = state.bills.find(function(b){return b.id===state.selectedBillId;});
+  if(!bill) return;
+  var editor = document.getElementById("billEditor");
+  var status = billStatus(bill);
+  var statusLabel = status==="paid" ? "✅ Paid" : status==="overdue" ? "⚠️ Overdue" : "Upcoming";
+
+  var colorSwatches = BILL_COLORS.map(function(c){
+    return '<button class="bill-color-swatch'+(bill.color===c?" selected":"")+'" data-color="'+c+'" style="background:'+c+'"></button>';
+  }).join("");
+
+  var freqOptions = BILL_FREQS.map(function(f){
+    return '<option value="'+f.val+'"'+(bill.frequency===f.val?" selected":"")+'>'+f.label+'</option>';
+  }).join("");
+
+  var catOptions = BILL_CATEGORIES.map(function(c){
+    return '<option value="'+c+'"'+(bill.category===c?" selected":"")+'>'+c+'</option>';
+  }).join("");
+
+  var currOptions = BILL_CURRENCIES.map(function(c){
+    return '<option value="'+c+'"'+(bill.currency===c?" selected":"")+'>'+c+'</option>';
+  }).join("");
+
+  var payBtn = status==="paid"
+    ? '<button class="bill-action-btn unpay" id="billUnpayBtn">↩ Mark unpaid</button>'
+    : '<button class="bill-action-btn pay-now" id="billPayBtn">✓ Mark as paid</button>';
+
+  var historyHtml = bill.paidDates && bill.paidDates.length
+    ? bill.paidDates.map(function(d){
+        return '<div class="bill-history-item"><span class="bill-history-dot"></span>'+d+'</div>';
+      }).join("")
+    : '<div class="bill-history-empty">No payments recorded yet.</div>';
+
+  editor.innerHTML =
+    '<div class="bill-editor-head">'+
+      '<div class="bill-editor-toprow">'+
+        '<input class="bill-name-input" id="billNameInput" placeholder="Bill name" value="'+esc(bill.name)+'" />'+
+        '<div class="bill-editor-actions">'+
+          payBtn+
+          '<button class="bill-action-btn" id="billSendDmBtn" title="Send to Discord DMs">📨 DM</button>'+
+          '<button class="bill-action-btn del" id="billDeleteBtn" title="Delete bill">🗑</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--ink-dim);padding-bottom:2px;">'+statusLabel+(bill.dueDate?" · Due "+bill.dueDate:"")+(bill.autoPay?" · Auto-pay":"")+'</div>'+
+    '</div>'+
+    '<div class="bill-editor-body">'+
+      '<div class="bill-form-grid">'+
+        '<div class="bill-field">'+
+          '<label>Amount</label>'+
+          '<div class="bill-amount-row">'+
+            '<input type="number" id="billAmount" min="0" step="0.01" value="'+Number(bill.amount).toFixed(2)+'" />'+
+            '<select id="billCurrency">'+currOptions+'</select>'+
+          '</div>'+
+        '</div>'+
+        '<div class="bill-field">'+
+          '<label>Due date</label>'+
+          '<input type="date" id="billDueDate" value="'+(bill.dueDate||"")+'" />'+
+        '</div>'+
+        '<div class="bill-field">'+
+          '<label>Frequency</label>'+
+          '<select id="billFrequency">'+freqOptions+'</select>'+
+        '</div>'+
+        '<div class="bill-field">'+
+          '<label>Category</label>'+
+          '<select id="billCategory">'+catOptions+'</select>'+
+        '</div>'+
+        '<div class="bill-field">'+
+          '<label>Website / URL</label>'+
+          '<input type="url" id="billUrl" placeholder="https://…" value="'+esc(bill.url||"")+'" />'+
+        '</div>'+
+        '<div class="bill-field">'+
+          '<label>Remind me (days before)</label>'+
+          '<input type="number" id="billReminderDays" min="0" max="30" placeholder="e.g. 3" value="'+(bill.reminderDays!=null?bill.reminderDays:"")+'" />'+
+        '</div>'+
+        '<div class="bill-field full">'+
+          '<label>Auto-pay</label>'+
+          '<div class="bill-toggle-row">'+
+            '<input type="checkbox" id="billAutoPay"'+(bill.autoPay?" checked":"")+' />'+
+            '<label for="billAutoPay">This bill is paid automatically</label>'+
+          '</div>'+
+        '</div>'+
+        '<div class="bill-field full">'+
+          '<label>Color</label>'+
+          '<div class="bill-color-row" id="billColorRow">'+colorSwatches+'</div>'+
+        '</div>'+
+        '<div class="bill-field full">'+
+          '<label>Notes</label>'+
+          '<textarea id="billNotes" placeholder="Any extra details…">'+esc(bill.notes||"")+'</textarea>'+
+        '</div>'+
+      '</div>'+
+      '<div class="bill-history">'+
+        '<div class="bill-history-title">Payment history</div>'+
+        historyHtml+
+      '</div>'+
+    '</div>';
+
+  // Auto-save on field change
+  function saveBill() {
+    var reminderVal = document.getElementById("billReminderDays").value;
+    api("/api/bills/"+bill.id, {method:"PUT", body:JSON.stringify({
+      name:         document.getElementById("billNameInput").value,
+      amount:       parseFloat(document.getElementById("billAmount").value)||0,
+      currency:     document.getElementById("billCurrency").value,
+      dueDate:      document.getElementById("billDueDate").value||null,
+      frequency:    document.getElementById("billFrequency").value,
+      category:     document.getElementById("billCategory").value,
+      url:          document.getElementById("billUrl").value,
+      reminderDays: reminderVal!==""?parseInt(reminderVal,10):null,
+      autoPay:      document.getElementById("billAutoPay").checked,
+      notes:        document.getElementById("billNotes").value,
+      color:        bill.color
+    })}).then(function(updated){
+      var idx=state.bills.findIndex(function(b){return b.id===updated.id;});
+      if(idx>-1) state.bills[idx]=updated;
+      bill = updated;
+      renderBillList();
+    });
+  }
+
+  var saveTimer = null;
+  function debounceSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveBill,600); }
+
+  ["billNameInput","billAmount","billCurrency","billDueDate","billFrequency","billCategory","billUrl","billReminderDays","billNotes"].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.addEventListener("input", debounceSave);
+  });
+  document.getElementById("billAutoPay").addEventListener("change", saveBill);
+
+  // Color swatches
+  document.getElementById("billColorRow").querySelectorAll(".bill-color-swatch").forEach(function(sw){
+    sw.addEventListener("click", function(){
+      bill.color = sw.getAttribute("data-color");
+      saveBill();
+      document.querySelectorAll(".bill-color-swatch").forEach(function(s){s.classList.remove("selected");});
+      sw.classList.add("selected");
+    });
+  });
+
+  // Pay / unpay
+  var payBtn2 = document.getElementById("billPayBtn");
+  if(payBtn2) payBtn2.addEventListener("click",function(){
+    api("/api/bills/"+bill.id+"/pay",{method:"POST"}).then(function(updated){
+      var idx=state.bills.findIndex(function(b){return b.id===updated.id;});
+      if(idx>-1) state.bills[idx]=updated;
+      state.selectedBillId=updated.id;
+      renderBillList();
+      showToast("Marked as paid ✓");
+    });
+  });
+  var unpayBtn = document.getElementById("billUnpayBtn");
+  if(unpayBtn) unpayBtn.addEventListener("click",function(){
+    api("/api/bills/"+bill.id+"/unpay",{method:"POST"}).then(function(updated){
+      var idx=state.bills.findIndex(function(b){return b.id===updated.id;});
+      if(idx>-1) state.bills[idx]=updated;
+      renderBillList();
+      showToast("Marked as unpaid");
+    });
+  });
+
+  // Send DM
+  document.getElementById("billSendDmBtn").addEventListener("click",function(){
+    api("/api/bills/"+bill.id+"/send-dm",{method:"POST"})
+      .then(function(){ showToast("Bill sent to your DMs 📨"); })
+      .catch(function(){ showToast("Failed — is the bot configured?"); });
+  });
+
+  // Delete
+  document.getElementById("billDeleteBtn").addEventListener("click",function(){
+    openConfirm("Delete \""+bill.name+"\"? This can't be undone.",{type:"deleteBill",id:bill.id});
+  });
+}
+
+// Add bill button
+document.getElementById("addBillBtn").addEventListener("click",function(){
+  api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:"CAD",color:"#c9605a"})})
+    .then(function(bill){
+      state.bills.unshift(bill);
+      state.selectedBillId=bill.id;
+      renderBillList();
+      var nameInput=document.getElementById("billNameInput");
+      if(nameInput){nameInput.select(); nameInput.focus();}
+    });
+});
+
+// Hook deleteBill into existing confirm handler
+var _origConfirmOk = document.getElementById("confirmOk").onclick;
+document.getElementById("confirmOk").addEventListener("click",function(){
+  if(pendingAction && pendingAction.type==="deleteBill"){
+    api("/api/bills/"+pendingAction.id,{method:"DELETE"}).then(function(){
+      state.bills=state.bills.filter(function(b){return b.id!==pendingAction.id;});
+      if(state.selectedBillId===pendingAction.id) state.selectedBillId=null;
+      renderBillList();
+      showToast("Bill deleted");
+    });
+    document.getElementById("confirmOverlay").classList.add("hidden");
+    pendingAction=null;
+  }
 });
 
 boot();

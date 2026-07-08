@@ -9,7 +9,7 @@ const store = require("./store");
 
 const {
   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI,
-  SESSION_SECRET, ALLOWED_DISCORD_IDS, BOT_TOKEN, PORT
+  SESSION_SECRET, ALLOWED_DISCORD_IDS, BOT_TOKEN, ADMIN_DISCORD_ID, PORT
 } = process.env;
 
 if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !SESSION_SECRET) {
@@ -17,7 +17,7 @@ if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !SE
   process.exit(1);
 }
 
-const allowlist = (ALLOWED_DISCORD_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+const allowlist = (ALLOWED_DISCORD_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
 
 const app = express();
 app.set("trust proxy", 1);
@@ -32,7 +32,12 @@ app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 1000 * 60 * 60 * 24 * 30 }
+  cookie: {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 1000 * 60 * 60 * 24 * 30
+  }
 }));
 
 function requireAuth(req, res, next) {
@@ -40,8 +45,22 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: "Not logged in" });
+  if (!ADMIN_DISCORD_ID || req.session.user.id !== ADMIN_DISCORD_ID) {
+    return res.status(403).json({ error: "Admin only" });
+  }
+  next();
+}
+
 // ---------- Discord bot helpers ----------
 const DISCORD_API = "https://discord.com/api/v10";
+
+function getAppUrl() {
+  return process.env.DISCORD_REDIRECT_URI
+    ? process.env.DISCORD_REDIRECT_URI.replace("/auth/discord/callback", "")
+    : "https://notes.awucard.me";
+}
 
 async function botFetch(path, opts = {}) {
   if (!BOT_TOKEN) throw new Error("BOT_TOKEN not configured");
@@ -77,59 +96,55 @@ function splitMessage(text, max = 1900) {
   return chunks;
 }
 
-function getAppUrl() {
-  return "https://notes.awucard.me";
-}
-
-function buildReminderBlurb(note) {
-  const title = note.title?.trim() || "Untitled note";
-  const body = (note.body || "").replace(/\s+/g, " ").trim();
-  const blurb = body
-    ? body.length > 180
-      ? `${body.slice(0, 180)}...\n\n[See more on Ledger]`
-      : body
-    : "No note body yet.";
-  return `Hey, wake up. You asked me to remind you about this note.\n\n**${title}**\n\n${blurb}`;
-}
-
-async function sendDM(discordUserId, content, options = {}) {
+async function sendDM(discordUserId, embeds, content) {
   const channel = await getDMChannel(discordUserId);
-  const chunks = splitMessage(content, options.maxLength || 3800);
-  const label = options.label || "Ledger";
-  for (const chunk of chunks) {
-    const payload = {
-      content: "",
-      embeds: [{
-        title: label,
-        description: chunk,
-        color: 0xE8A33D,
-        footer: { text: "Sent from Ledger" }
-      }]
-    };
-    if (options.buttonUrl) {
-      payload.components = [{
-        type: 1,
-        components: [{
-          type: 2,
-          style: 5,
-          label: options.buttonLabel || "Head to Ledger",
-          url: options.buttonUrl
-        }]
-      }];
-    }
-    await botFetch(`/channels/${channel.id}/messages`, {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-  }
+  await botFetch(`/channels/${channel.id}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content: content || "", embeds: embeds || [] })
+  });
 }
 
-function formatNoteForDiscord(note, label = null) {
-  let msg = label ? `${label}\n` : "";
-  if (note.title) msg += `**${note.title}**\n`;
-  if (note.body) msg += `\n${note.body}`;
-  if (note.tags && note.tags.length) msg += `\n\n🏷️ ${note.tags.map((t) => `#${t}`).join(" ")}`;
-  return msg.trim();
+function formatNoteEmbed(note) {
+  const embed = {
+    color: 0xe8a33d,
+    title: note.title || "Untitled",
+    description: note.body ? note.body.slice(0, 4000) : "*No content*",
+    footer: { text: "Ledger · " + getAppUrl() },
+    timestamp: new Date().toISOString()
+  };
+  if (note.tags && note.tags.length) {
+    embed.fields = [{ name: "Tags", value: note.tags.map(t => `#${t}`).join(" "), inline: true }];
+  }
+  return embed;
+}
+
+function formatReminderEmbed(note, noteTitle) {
+  return {
+    color: 0x4fa8a0,
+    title: "⏰ Reminder: " + (noteTitle || note?.title || "Note"),
+    description: note?.body ? note.body.slice(0, 4000) : "*Note no longer exists*",
+    footer: { text: "Ledger · " + getAppUrl() },
+    timestamp: new Date().toISOString()
+  };
+}
+
+function formatBillEmbed(bill) {
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = bill.dueDate && bill.dueDate < today && !bill.paid;
+  return {
+    color: bill.paid ? 0x6fbf73 : (isOverdue ? 0xc9605a : 0xe8a33d),
+    title: (bill.paid ? "✅" : isOverdue ? "⚠️" : "💳") + " " + bill.name,
+    fields: [
+      { name: "Amount", value: `${bill.currency} $${Number(bill.amount).toFixed(2)}`, inline: true },
+      { name: "Due", value: bill.dueDate || "—", inline: true },
+      { name: "Frequency", value: bill.frequency, inline: true },
+      { name: "Category", value: bill.category, inline: true },
+      { name: "Auto-pay", value: bill.autoPay ? "Yes" : "No", inline: true },
+      ...(bill.notes ? [{ name: "Notes", value: bill.notes }] : [])
+    ],
+    footer: { text: "Ledger Bill Scheduler · " + getAppUrl() },
+    timestamp: new Date().toISOString()
+  };
 }
 
 // ---------- Reminder job ----------
@@ -140,15 +155,9 @@ function startReminderJob() {
       try {
         const user = store.getUser(reminder.ownerId);
         const note = store.getNote(reminder.ownerId, reminder.noteId);
-        const title = note ? note.title : reminder.noteTitle;
-        const body = note ? note.body : "(Note no longer exists)";
-        const tags = note ? note.tags : [];
-        const fakeNote = { title, body, tags };
-        const content = buildReminderBlurb(fakeNote);
-        if (user) await sendDM(user.id, content, {
-          label: "Hey, wake up",
-          buttonUrl: getAppUrl()
-        });
+        if (user) {
+          await sendDM(user.id, [formatReminderEmbed(note, reminder.noteTitle)]);
+        }
       } catch (err) {
         console.error("Reminder DM failed:", err.message);
       }
@@ -158,10 +167,31 @@ function startReminderJob() {
         await store.deleteReminder(reminder.id);
       }
     }
+
+    // Bill due-date reminders
+    if (ADMIN_DISCORD_ID && BOT_TOKEN) {
+      const admin = store.getUser(ADMIN_DISCORD_ID);
+      if (admin) {
+        const bills = store.listBills();
+        const today = new Date().toISOString().slice(0, 10);
+        for (const bill of bills) {
+          if (!bill.dueDate || bill.paid || !bill.reminderDays != null) continue;
+          const due = new Date(bill.dueDate + "T00:00:00");
+          const diffDays = Math.round((due - new Date().setHours(0,0,0,0)) / 86400000);
+          if (diffDays === bill.reminderDays) {
+            try {
+              await sendDM(admin.id, [formatBillEmbed(bill)],
+                diffDays === 0 ? `💳 **${bill.name}** is due today!` : `💳 **${bill.name}** is due in ${diffDays} day${diffDays===1?"":"s"}.`
+              );
+            } catch(e) { console.error("Bill reminder DM failed:", e.message); }
+          }
+        }
+      }
+    }
   }, 30000);
 }
 
-// ---------- Discord OAuth2 ----------
+// ---------- OAuth2 ----------
 app.get("/auth/discord", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   req.session.oauthState = state;
@@ -207,22 +237,22 @@ app.post("/auth/logout", (req, res) => {
 
 app.get("/api/me", (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Not logged in" });
-  res.json(req.session.user);
+  res.json({ ...req.session.user, isAdmin: req.session.user.id === ADMIN_DISCORD_ID });
 });
 
 app.put("/api/me/timezone", requireAuth, async (req, res) => {
   const { timezone } = req.body || {};
   if (!timezone) return res.status(400).json({ error: "timezone required" });
-  const user = await store.updateUserTimezone(req.session.user.id, timezone);
+  await store.updateUserTimezone(req.session.user.id, timezone);
   req.session.user.timezone = timezone;
-  res.json(user);
+  res.json({ ok: true });
 });
 
 // ---------- Characters ----------
 app.get("/api/characters", requireAuth, (req, res) => res.json(store.listCharacters(req.session.user.id)));
 app.post("/api/characters", requireAuth, async (req, res) => {
   const { name, color } = req.body || {};
-  if (!name || !name.trim()) return res.status(400).json({ error: "Name is required" });
+  if (!name?.trim()) return res.status(400).json({ error: "Name required" });
   res.status(201).json(await store.createCharacter(req.session.user.id, { name: name.trim(), color }));
 });
 app.put("/api/characters/:id", requireAuth, async (req, res) => {
@@ -260,27 +290,24 @@ app.delete("/api/notes", requireAuth, async (req, res) => {
 
 // ---------- Send note to DM ----------
 app.post("/api/notes/:id/send-dm", requireAuth, async (req, res) => {
-  if (!BOT_TOKEN) return res.status(503).json({ error: "Bot not configured — add BOT_TOKEN to your environment variables." });
+  if (!BOT_TOKEN) return res.status(503).json({ error: "Bot not configured" });
   const note = store.getNote(req.session.user.id, req.params.id);
   if (!note) return res.status(404).json({ error: "Not found" });
   try {
-    await sendDM(req.session.user.id, formatNoteForDiscord(note), { label: "Note from Ledger" });
+    await sendDM(req.session.user.id, [formatNoteEmbed(note)]);
     res.json({ ok: true });
   } catch (err) {
-    console.error("Send DM failed:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ---------- Reminders ----------
-app.get("/api/reminders", requireAuth, (req, res) => {
-  res.json(store.listReminders(req.session.user.id));
-});
+app.get("/api/reminders", requireAuth, (req, res) => res.json(store.listReminders(req.session.user.id)));
 app.get("/api/notes/:id/reminders", requireAuth, (req, res) => {
   res.json(store.listRemindersForNote(req.session.user.id, req.params.id));
 });
 app.post("/api/reminders", requireAuth, async (req, res) => {
-  if (!BOT_TOKEN) return res.status(503).json({ error: "Bot not configured — add BOT_TOKEN to your environment variables." });
+  if (!BOT_TOKEN) return res.status(503).json({ error: "Bot not configured" });
   const { noteId, fireAt, repeat, repeatInterval, noteTitle } = req.body || {};
   if (!noteId || !fireAt) return res.status(400).json({ error: "noteId and fireAt required" });
   const reminder = await store.createReminder(req.session.user.id, { noteId, fireAt, repeat, repeatInterval, noteTitle });
@@ -292,16 +319,63 @@ app.delete("/api/reminders/:id", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Bills (admin only) ----------
+app.get("/api/bills", requireAdmin, (req, res) => res.json(store.listBills()));
+
+app.post("/api/bills", requireAdmin, async (req, res) => {
+  const bill = await store.createBill(req.body || {});
+  res.status(201).json(bill);
+});
+
+app.put("/api/bills/:id", requireAdmin, async (req, res) => {
+  const bill = await store.updateBill(req.params.id, req.body || {});
+  if (!bill) return res.status(404).json({ error: "Not found" });
+  res.json(bill);
+});
+
+app.post("/api/bills/:id/pay", requireAdmin, async (req, res) => {
+  const bill = await store.markBillPaid(req.params.id);
+  if (!bill) return res.status(404).json({ error: "Not found" });
+  if (BOT_TOKEN) {
+    const admin = store.getUser(ADMIN_DISCORD_ID);
+    if (admin) {
+      sendDM(admin.id, [formatBillEmbed(bill)], `✅ **${bill.name}** marked as paid.`)
+        .catch(e => console.error("Bill paid DM failed:", e.message));
+    }
+  }
+  res.json(bill);
+});
+
+app.post("/api/bills/:id/unpay", requireAdmin, async (req, res) => {
+  const bill = await store.markBillUnpaid(req.params.id);
+  if (!bill) return res.status(404).json({ error: "Not found" });
+  res.json(bill);
+});
+
+app.post("/api/bills/:id/send-dm", requireAdmin, async (req, res) => {
+  if (!BOT_TOKEN) return res.status(503).json({ error: "Bot not configured" });
+  const bill = store.getBill(req.params.id);
+  if (!bill) return res.status(404).json({ error: "Not found" });
+  try {
+    await sendDM(ADMIN_DISCORD_ID, [formatBillEmbed(bill)]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/bills/:id", requireAdmin, async (req, res) => {
+  const ok = await store.deleteBill(req.params.id);
+  if (!ok) return res.status(404).json({ error: "Not found" });
+  res.json({ ok: true });
+});
+
 app.get("/healthz", (req, res) => res.send("ok"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const port = PORT || 3000;
 app.listen(port, () => {
   console.log(`Ledger running on http://localhost:${port}`);
-  if (BOT_TOKEN) {
-    startReminderJob();
-    console.log("Reminder job started.");
-  } else {
-    console.log("No BOT_TOKEN — DM and reminder features disabled.");
-  }
+  if (BOT_TOKEN) { startReminderJob(); console.log("Reminder + bill alert job started."); }
+  else console.log("No BOT_TOKEN — DM features disabled.");
 });
