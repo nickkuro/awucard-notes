@@ -2239,12 +2239,15 @@ document.getElementById("confirmOk").addEventListener("click",function(){
   else if(pendingAction.type==="clearNotes") clearNotes();
   else if(pendingAction.type==="deleteChar") deleteCharacter(pendingAction.id);
   else if(pendingAction.type==="deleteBill"){
-    api("/api/bills/"+pendingAction.id,{method:"DELETE"}).then(function(){
-      state.bills=state.bills.filter(function(b){return b.id!==pendingAction.id;});
-      if(state.selectedBillId===pendingAction.id) state.selectedBillId=null;
+    var billId=pendingAction.id;
+    closeConfirm();
+    api("/api/bills/"+billId,{method:"DELETE"}).then(function(){
+      state.bills=state.bills.filter(function(b){return b.id!==billId;});
+      if(state.selectedBillId===billId) state.selectedBillId=null;
       renderBillList();
       showToast("Bill deleted");
     });
+    return;
   }
   closeConfirm();
 });
