@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const FileStore = require("session-file-store")(session);
+const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
 const path = require("path");
 const store = require("./store");
@@ -11,8 +12,6 @@ const {
   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI,
   SESSION_SECRET, ALLOWED_DISCORD_IDS, BOT_TOKEN, ADMIN_DISCORD_ID, PORT
 } = process.env;
-
-console.log("ADMIN_DISCORD_ID:", JSON.stringify(ADMIN_DISCORD_ID), "length:", ADMIN_DISCORD_ID?.length);
 
 if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !SESSION_SECRET) {
   console.error("Missing required env vars.");
@@ -36,6 +35,22 @@ app.use(session({
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 1000 * 60 * 60 * 24 * 30 }
 }));
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Try again in a minute." }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Slow down." }
+});
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: "Not logged in" });
@@ -172,7 +187,7 @@ function startReminderJob() {
 }
 
 // ---------- Discord OAuth2 ----------
-app.get("/auth/discord", (req, res) => {
+app.get("/auth/discord", authLimiter, (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   req.session.oauthState = state;
   const params = new URLSearchParams({
@@ -182,7 +197,7 @@ app.get("/auth/discord", (req, res) => {
   res.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
 });
 
-app.get("/auth/discord/callback", async (req, res) => {
+app.get("/auth/discord/callback", authLimiter, async (req, res) => {
   const { code, state } = req.query;
   if (!code || !state || state !== req.session.oauthState) {
     return res.status(400).send("Login failed: invalid or expired state. Go back and try again.");
@@ -227,6 +242,8 @@ app.put("/api/me/timezone", requireAuth, async (req, res) => {
   req.session.user.timezone = timezone;
   res.json(user);
 });
+
+app.use("/api", apiLimiter);
 
 // ---------- Characters ----------
 app.get("/api/characters", requireAuth, (req, res) => res.json(store.listCharacters(req.session.user.id)));
