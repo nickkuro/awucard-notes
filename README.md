@@ -1,35 +1,73 @@
 # Ledger
 
-Ledger is a private, Discord-backed notes app for characters, stories, and personal worldbuilding. It started as a simple note-taking tool and has grown into a small app with character organization, markdown notes, reminders, and Discord integrations.
+**A private, Discord-backed notes app for characters, stories, and worldbuilding.**
 
-The app is intentionally personal and private: each user signs in with Discord, gets their own notes space, and keeps data on the server rather than in the browser.
+Ledger started as a simple note-taking tool and has grown into a small self-hosted app with character organization, markdown notes, a calendar, reminders, an admin-only bill scheduler, and Discord integrations — all backed by your own Discord login.
 
-## What it can do now
+<p>
+  <img alt="Node" src="https://img.shields.io/badge/node-%3E%3D18-6DA55F?logo=node.js&logoColor=white">
+  <img alt="Express" src="https://img.shields.io/badge/backend-Express-000000?logo=express&logoColor=white">
+  <img alt="Discord OAuth2" src="https://img.shields.io/badge/auth-Discord%20OAuth2-5865F2?logo=discord&logoColor=white">
+  <img alt="Docker ready" src="https://img.shields.io/badge/deploy-Docker%20%2F%20Portainer-2496ED?logo=docker&logoColor=white">
+  <img alt="Status" src="https://img.shields.io/badge/status-actively%20developed-e8a33d">
+</p>
 
-- Discord login with a personal account space
+Each user signs in with Discord and gets their own private notes space. Data lives on the server, not the browser — this is intentionally a personal, self-hosted tool rather than a multi-tenant SaaS product.
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Deployment](#deployment)
+- [Docker / Portainer](#docker--portainer)
+- [Project structure](#project-structure)
+- [Data storage](#data-storage)
+
+---
+
+## Features
+
+**Notes**
+- Plain text or Markdown notes with auto-save and live rendering
 - Character-based organization with colored character groups
-- Notes with plain text or Markdown
-- Auto-save and live markdown rendering
-- Tags, search, and filtered note views
-- Image embedding in notes
-- Send a note directly to your own Discord DMs
-- One-time and repeating reminders sent to Discord DMs
-- Per-user timezone support for reminder display
-- About + changelog modal
+- Sticky notes that stay pinned across every character view
+- Tags, full-text search, and filtered note views
+- Inline image embedding
+
+**Calendar**
+- Month and week views of due notes, reminders, and bills
+- Click a day to see everything scheduled for it
+- Create a note directly from a calendar day, due date pre-filled
+
+**Bills** *(admin only)*
+- Track recurring bills — due date, frequency, category, currency
+- Mark paid/unpaid; recurring bills auto-advance to their next due date
+- Bill reminders sent to Discord DMs, same as note reminders
+
+**Discord integration**
+- Discord OAuth2 login, with an optional allow-list of approved user IDs
+- Send any note straight to your own Discord DMs
+- One-time or repeating reminders delivered via DM
+- Per-user timezone support for accurate reminder times
+
+**Look & feel**
+- Dark/light theme
+- In-app About + versioned Changelog
 - Terms of Service and Privacy Policy pages
-- Dark/light theme support
 
-## Current status
+For the full version history, open the **About → Changelog** tab inside the app.
 
-Ledger is usable and actively being refined. The site is still getting polish, so expect small changes and occasional surprises while the app evolves.
+---
 
 ## Quick start
 
 ### 1. Register a Discord application
 
-1. Go to https://discord.com/developers/applications and create a new application.
-2. Open OAuth2 in the sidebar and note the Client ID and Client Secret.
-3. Under Redirects, add:
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create a new application.
+2. Open **OAuth2** in the sidebar and note the Client ID and Client Secret.
+3. Under **Redirects**, add:
    - Local: `http://localhost:3000/auth/discord/callback`
    - Production: `https://your-domain.com/auth/discord/callback`
 
@@ -41,22 +79,22 @@ cp .env.example .env
 
 Fill in the required values:
 
-- `DISCORD_CLIENT_ID`
-- `DISCORD_CLIENT_SECRET`
-- `DISCORD_REDIRECT_URI`
-- `SESSION_SECRET`
+| Variable | Required | Purpose |
+|---|---|---|
+| `DISCORD_CLIENT_ID` | Yes | From the Discord Developer Portal |
+| `DISCORD_CLIENT_SECRET` | Yes | From the Discord Developer Portal |
+| `DISCORD_REDIRECT_URI` | Yes | Must exactly match a registered redirect |
+| `SESSION_SECRET` | Yes | Random string used to sign session cookies |
+| `ALLOWED_DISCORD_IDS` | No | Comma-separated guest list of approved Discord user IDs |
+| `BOT_TOKEN` | No | Enables Send-to-DM and reminder features |
+| `ADMIN_DISCORD_ID` | No | Discord ID granted access to the Bills tab |
+| `PORT` | No | Custom port (defaults to 3000) |
 
 Generate a session secret with:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
-
-Optional:
-
-- `ALLOWED_DISCORD_IDS` for a guest list of approved Discord user IDs
-- `BOT_TOKEN` if you want DM sending and reminders enabled
-- `PORT` if you want a custom port
 
 ### 3. Install and run
 
@@ -66,6 +104,8 @@ npm start
 ```
 
 Then visit `http://localhost:3000` and sign in with Discord.
+
+---
 
 ## Deployment
 
@@ -81,47 +121,51 @@ In production, make sure:
 - `NODE_ENV=production` is set
 - the app is served over HTTPS
 
+---
+
 ## Docker / Portainer
 
-The repo includes a Dockerfile and docker-compose.yml for containerized deployment.
+The repo includes a `Dockerfile` and `docker-compose.yml` for containerized deployment.
 
-### Local Docker run
+**Local Docker run:**
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-### Portainer
+**Portainer:**
 
 1. Push the repo to GitHub or another Git host.
 2. In Portainer, create a stack from the repository.
 3. Add the same environment variables from `.env`.
 4. Deploy the stack.
 
-The container uses a persistent data volume so your notes survive container restarts and recreation.
+The container uses a persistent data volume so notes, sessions, and bills survive container restarts and recreation.
+
+---
 
 ## Project structure
 
-- `server.js` — Express server, Discord OAuth flow, and API routes
-- `store.js` — data storage logic for notes, characters, reminders, and users
-- `public/index.html` — frontend UI and modal views
-- `public/terms.html` and `public/privacy.html` — legal pages
-- `Dockerfile` and `docker-compose.yml` — container setup
+```
+.
+├── server.js         Express server, Discord OAuth flow, and API routes
+├── store.js          Data layer — notes, characters, reminders, bills, users
+├── store-check.js    Lightweight smoke test for the data layer
+├── public/
+│   ├── index.html      Frontend UI — notes, calendar, bills, and modals
+│   ├── terms.html       Terms of Service
+│   └── privacy.html     Privacy Policy
+├── Dockerfile
+└── docker-compose.yml
+```
 
-## Notes on data
+---
 
-Ledger currently stores data in a JSON-based store on the server. That is simple and practical for a small personal project, and it keeps the app easy to run and back up. If the project grows, the data layer can be swapped out without changing the rest of the app.
+## Data storage
 
-## Recent progress
+Ledger stores data in a JSON file on the server rather than a database. That's simple, easy to back up, and practical for a project at this scale. If it ever needs to grow past that, the data layer in `store.js` is isolated enough to swap out without touching the rest of the app.
 
-The app now includes:
+---
 
-- a fuller note editor experience
-- character-based note organization
-- Discord DM sending
-- reminders and timezone handling
-- polished About / Changelog content
-- basic legal pages for Terms and Privacy
-
-If you want, the next step can be turning this into a more formal project roadmap or adding a changelog section for future releases.
+<sub>Built and maintained by Awucard.</sub>
