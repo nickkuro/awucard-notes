@@ -437,6 +437,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .access-add-row input:focus { border-color: var(--accent); outline: none; }
 #accessIdInput { flex: 1.2; min-width: 0; }
 #accessLabelInput { flex: 1; min-width: 0; }
+#accessAddBtn {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 5px;
+  font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
 .access-list { max-height: 260px; overflow-y: auto; }
 .access-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -1144,7 +1148,7 @@ kbd {
     <div class="access-add-row">
       <input type="text" id="accessIdInput" placeholder="Discord user ID" />
       <input type="text" id="accessLabelInput" placeholder="Label (optional)" maxlength="64" />
-      <button class="btn-primary" id="accessAddBtn">Add</button>
+      <button class="btn-primary" id="accessAddBtn" aria-label="Add" title="Add">+</button>
     </div>
     <div class="access-list" id="accessList"></div>
     <div class="modal-actions" style="margin-top:14px;">
