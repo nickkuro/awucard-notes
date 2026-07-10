@@ -444,7 +444,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   background: var(--surface); margin-bottom: 6px;
 }
 .access-item-info { min-width: 0; }
-.access-item-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.access-item-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.access-item-tag {
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim); border: 1px solid var(--border); border-radius: 100px; padding: 1px 6px; flex-shrink: 0;
+}
 .access-item-id { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); }
 .access-remove-btn {
   flex-shrink: 0; width: 24px; height: 24px; border-radius: 5px;
@@ -1136,7 +1140,7 @@ kbd {
 <div class="overlay-bg hidden" id="accessOverlay">
   <div class="modal access-modal">
     <div class="modal-title">Manage access</div>
-    <p style="margin-bottom:12px;">Only these Discord accounts can log in. Leave the list empty to allow anyone.</p>
+    <p style="margin-bottom:12px;">Only these Discord accounts can log in. Entries tagged "From env" come from the ALLOWED_DISCORD_IDS environment variable and can only be removed by editing that and redeploying. With no restrictions at all, anyone with Discord can log in.</p>
     <div class="access-add-row">
       <input type="text" id="accessIdInput" placeholder="Discord user ID" />
       <input type="text" id="accessLabelInput" placeholder="Label (optional)" maxlength="64" />
@@ -1273,6 +1277,12 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v2.3.1</div>
+          <div class="cl-items">
+            <div class="cl-item fix">Manage access panel now also shows accounts already allowed via ALLOWED_DISCORD_IDS and the admin account, tagged so it's clear they can't be removed from the panel.</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v2.3</div>
           <div class="cl-items">
@@ -2234,23 +2244,35 @@ document.getElementById("timezoneOverlay").addEventListener("click",function(e){
 });
 
 // ---------- Manage access (admin only) ----------
+function accessItemRow(e) {
+  var removable = e.source === "dynamic";
+  var tag = e.source === "admin" ? '<span class="access-item-tag">Admin</span>'
+    : e.source === "env" ? '<span class="access-item-tag">From env</span>' : '';
+  var labelRow = (e.label || tag) ? '<div class="access-item-label">'+(e.label?esc(e.label):'')+tag+'</div>' : '';
+  return '<div class="access-item" data-id="'+esc(e.id)+'">'+
+    '<div class="access-item-info">'+
+      labelRow+
+      '<div class="access-item-id">'+esc(e.id)+'</div>'+
+    '</div>'+
+    (removable
+      ? '<button class="access-remove-btn" data-remove-id="'+esc(e.id)+'" aria-label="Remove">'+
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+        '</button>'
+      : '')+
+  '</div>';
+}
+
 function renderAccessList(entries) {
   var list = document.getElementById("accessList");
-  if(!entries.length){
-    list.innerHTML = '<div class="access-empty">No restrictions — anyone with Discord can log in.</div>';
-    return;
-  }
-  list.innerHTML = entries.map(function(e){
-    return '<div class="access-item" data-id="'+esc(e.id)+'">'+
-      '<div class="access-item-info">'+
-        (e.label ? '<div class="access-item-label">'+esc(e.label)+'</div>' : '')+
-        '<div class="access-item-id">'+esc(e.id)+'</div>'+
-      '</div>'+
-      '<button class="access-remove-btn" data-remove-id="'+esc(e.id)+'" aria-label="Remove">'+
-        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
-      '</button>'+
-    '</div>';
-  }).join("");
+  var admin = entries.find(function(e){return e.source==="admin";});
+  var others = entries.filter(function(e){return e.source!=="admin";});
+
+  var html = admin ? accessItemRow(admin) : "";
+  html += others.length
+    ? others.map(accessItemRow).join("")
+    : '<div class="access-empty">No other restrictions — anyone with Discord can log in.</div>';
+  list.innerHTML = html;
+
   list.querySelectorAll("[data-remove-id]").forEach(function(btn){
     btn.addEventListener("click",function(){
       var id = btn.getAttribute("data-remove-id");

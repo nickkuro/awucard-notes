@@ -428,7 +428,25 @@ app.delete("/api/bills/:id", requireAdmin, async (req, res) => {
 });
 
 // ---------- Access allowlist (admin only) ----------
-app.get("/api/admin/allowlist", requireAdmin, (req, res) => res.json(store.listAllowlist()));
+app.get("/api/admin/allowlist", requireAdmin, (req, res) => {
+  const seen = new Set();
+  const result = [];
+  if (ADMIN_DISCORD_ID) {
+    result.push({ id: ADMIN_DISCORD_ID, label: "You (admin)", source: "admin" });
+    seen.add(ADMIN_DISCORD_ID);
+  }
+  store.listAllowlist().forEach((e) => {
+    if (seen.has(e.id)) return;
+    seen.add(e.id);
+    result.push({ id: e.id, label: e.label, source: "dynamic", addedAt: e.addedAt });
+  });
+  envAllowlist.forEach((id) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    result.push({ id, label: "", source: "env" });
+  });
+  res.json(result);
+});
 
 app.post("/api/admin/allowlist", requireAdmin, async (req, res) => {
   const { id, label } = req.body || {};
