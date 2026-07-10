@@ -278,7 +278,7 @@ function createBill(partial) {
     id,
     name:         partial.name || "New bill",
     amount:       parseFloat(partial.amount) || 0,
-    currency:     partial.currency || "CAD",
+    currency:     partial.currency || "USD",
     dueDate:      partial.dueDate || null,
     frequency:    partial.frequency || "monthly",
     category:     partial.category || "Other",

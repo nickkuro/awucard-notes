@@ -1230,6 +1230,12 @@ kbd {
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
         <div class="cl-entry">
+          <div class="cl-version">v2.2.3</div>
+          <div class="cl-items">
+            <div class="cl-item new">Added a back button (and re-clicking the Bills tab) to return from a bill to the overview.</div>
+          </div>
+        </div>
+        <div class="cl-entry">
           <div class="cl-version">v2.2.2</div>
           <div class="cl-items">
             <div class="cl-item fix">Bill editor fields no longer lose focus mid-typing when autosave kicks in.</div>
@@ -2731,7 +2737,13 @@ function renderCalSidePanel(date) {
 // Wire up calendar controls
 document.querySelectorAll(".view-tab").forEach(function(btn){
   btn.addEventListener("click", function(){
-    switchView(btn.getAttribute("data-view"));
+    var view = btn.getAttribute("data-view");
+    if(view === "bills" && state.view === "bills" && state.selectedBillId){
+      state.selectedBillId = null;
+      renderBillList();
+      return;
+    }
+    switchView(view);
   });
 });
 
@@ -2962,6 +2974,9 @@ function renderBillEditor() {
   editorEl.innerHTML =
     '<div class="bill-editor-head">'+
       '<div class="bill-editor-toprow">'+
+        '<button class="icon-btn" id="billBackBtn" aria-label="Back to overview" title="Back to overview">'+
+          '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'+
+        '</button>'+
         '<input class="bill-name-input" id="billNameInput" placeholder="Bill name" value="'+esc(bill.name)+'" />'+
         '<div class="bill-editor-actions">'+
           payBtn+
@@ -3067,10 +3082,14 @@ function renderBillEditor() {
   document.getElementById("billDeleteBtn").addEventListener("click",function(){
     openConfirm("Delete \""+bill.name+"\"? This can't be undone.",{type:"deleteBill",id:bill.id});
   });
+  document.getElementById("billBackBtn").addEventListener("click",function(){
+    state.selectedBillId = null;
+    renderBillList();
+  });
 }
 
 document.getElementById("addBillBtn").addEventListener("click",function(){
-  api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:"CAD",color:"#c9605a"})})
+  api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:"USD",color:"#c9605a"})})
     .then(function(bill){
       state.bills.unshift(bill);
       state.selectedBillId=bill.id;
