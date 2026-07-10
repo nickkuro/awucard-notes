@@ -758,6 +758,19 @@ kbd {
 .bill-dash-item:hover { border-color: var(--accent); }
 .bill-dash-item-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bill-dash-item-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); flex-shrink: 0; }
+.bill-dash-income-row { display: flex; gap: 8px; }
+.bill-dash-income-row input {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; font-size: 14px; color: var(--ink);
+}
+.bill-dash-income-row select {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; font-size: 13px; color: var(--ink); width: 80px; flex-shrink: 0;
+}
+.bill-dash-income-row input:focus, .bill-dash-income-row select:focus { border-color: var(--accent); outline: none; }
+.bill-dash-net { font-size: 12.5px; color: var(--ink-dim); margin-top: 10px; min-height: 1em; }
+.bill-dash-net.positive { color: var(--green); }
+.bill-dash-net.negative { color: var(--danger); }
 .bill-editor { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .bill-editor-head { padding: 14px 26px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .bill-editor-toprow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -1296,6 +1309,13 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v2.6</div>
+          <div class="cl-items">
+            <div class="cl-item new">Bills dashboard now shows a normalized monthly total across all recurring bills, regardless of their billing frequency.</div>
+            <div class="cl-item new">Added an estimated monthly income field on the dashboard, with a live left-over/short-by comparison against your monthly bills.</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v2.5</div>
           <div class="cl-items">
@@ -3089,14 +3109,41 @@ function renderBillList(opts) {
   }
 }
 
+var MONTHLY_FREQ_FACTOR = { weekly: 30.44/7, biweekly: 30.44/14, monthly: 1, quarterly: 1/3, yearly: 1/12 };
+
+function computeMonthlyTotals(bills) {
+  var totals = {};
+  bills.forEach(function(b){
+    var factor = MONTHLY_FREQ_FACTOR[b.frequency];
+    if(!factor) return; // one-time bills aren't a recurring monthly cost
+    totals[b.currency] = (totals[b.currency]||0) + (Number(b.amount)||0) * factor;
+  });
+  return totals;
+}
+
+function renderIncomeNetLine() {
+  var netEl = document.getElementById("incomeNetLine");
+  if(!netEl) return;
+  var income = state.user && state.user.incomeEstimate;
+  var currency = (state.user && state.user.incomeCurrency) || "USD";
+  if(income == null || income === ""){ netEl.textContent=""; netEl.className="bill-dash-net"; return; }
+  var spend = computeMonthlyTotals(state.bills)[currency] || 0;
+  var net = Number(income) - spend;
+  netEl.className = "bill-dash-net " + (net>=0 ? "positive" : "negative");
+  netEl.textContent = (net>=0 ? "Left over: " : "Short by: ") + currency + " $" + Math.abs(net).toFixed(2) +
+    " after " + currency + " $" + spend.toFixed(2) + " in recurring bills";
+}
+
+function saveIncomeEstimate() {
+  api("/api/me/income", {
+    method: "PUT",
+    body: JSON.stringify({ amount: state.user.incomeEstimate, currency: state.user.incomeCurrency })
+  }).catch(function(){});
+}
+
 function renderBillDashboard() {
   var el = document.getElementById("billPlaceholder");
   if(!el) return;
-
-  if(!state.bills.length){
-    el.innerHTML = '<div class="bill-dashboard-empty">No bills yet. Add one to see an overview here.</div>';
-    return;
-  }
 
   var overdue = [], upcoming = [], paid = [];
   var dueTotals = {};
@@ -3116,6 +3163,11 @@ function renderBillDashboard() {
     return cur+" $"+dueTotals[cur].toFixed(2);
   }).join(" · ") || "—";
 
+  var monthlyTotals = computeMonthlyTotals(state.bills);
+  var monthlyLine = Object.keys(monthlyTotals).map(function(cur){
+    return cur+" $"+monthlyTotals[cur].toFixed(2);
+  }).join(" · ") || "—";
+
   function itemRow(b){
     return '<div class="bill-dash-item" data-bill-id="'+b.id+'" style="border-left:2px solid '+b.color+'">'+
       '<span class="bill-dash-item-name">'+esc(b.name)+'</span>'+
@@ -3128,15 +3180,33 @@ function renderBillDashboard() {
     return '<div class="bill-dash-section"><div class="bill-dash-heading">'+title+'</div>'+rows+'</div>';
   }
 
-  el.innerHTML =
-    '<div class="bill-dash-stats">'+
-      '<div class="bill-dash-stat overdue"><div class="bill-dash-stat-value">'+overdue.length+'</div><div class="bill-dash-stat-label">Overdue</div></div>'+
-      '<div class="bill-dash-stat upcoming"><div class="bill-dash-stat-value">'+upcoming.length+'</div><div class="bill-dash-stat-label">Upcoming</div></div>'+
-      '<div class="bill-dash-stat paid"><div class="bill-dash-stat-value">'+paid.length+'</div><div class="bill-dash-stat-label">Paid</div></div>'+
-      '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+totalsLine+'</div><div class="bill-dash-stat-label">Total due</div></div>'+
-    '</div>'+
-    section("Overdue", overdue, "Nothing overdue.") +
-    section("Due soon", upcoming.slice(0,5), "Nothing else due.");
+  var incomeAmount = state.user && state.user.incomeEstimate;
+  var incomeCurrency = (state.user && state.user.incomeCurrency) || "USD";
+  var incomeCurrencyOptions = BILL_CURRENCIES.map(function(c){
+    return '<option value="'+c+'"'+(incomeCurrency===c?" selected":"")+'>'+c+'</option>';
+  }).join("");
+
+  var statsHtml = state.bills.length
+    ? '<div class="bill-dash-stats">'+
+        '<div class="bill-dash-stat overdue"><div class="bill-dash-stat-value">'+overdue.length+'</div><div class="bill-dash-stat-label">Overdue</div></div>'+
+        '<div class="bill-dash-stat upcoming"><div class="bill-dash-stat-value">'+upcoming.length+'</div><div class="bill-dash-stat-label">Upcoming</div></div>'+
+        '<div class="bill-dash-stat paid"><div class="bill-dash-stat-value">'+paid.length+'</div><div class="bill-dash-stat-label">Paid</div></div>'+
+        '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+totalsLine+'</div><div class="bill-dash-stat-label">Total due</div></div>'+
+        '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+monthlyLine+'</div><div class="bill-dash-stat-label">Monthly total</div></div>'+
+      '</div>'+
+      section("Overdue", overdue, "Nothing overdue.") +
+      section("Due soon", upcoming.slice(0,5), "Nothing else due.")
+    : '<div class="bill-dashboard-empty">No bills yet. Add one to see an overview here.</div>';
+
+  el.innerHTML = statsHtml +
+    '<div class="bill-dash-section">'+
+      '<div class="bill-dash-heading">Estimated monthly income</div>'+
+      '<div class="bill-dash-income-row">'+
+        '<input type="number" id="incomeAmountInput" min="0" step="0.01" placeholder="e.g. 4200" value="'+(incomeAmount!=null?incomeAmount:"")+'" />'+
+        '<select id="incomeCurrencyInput">'+incomeCurrencyOptions+'</select>'+
+      '</div>'+
+      '<div class="bill-dash-net" id="incomeNetLine"></div>'+
+    '</div>';
 
   el.querySelectorAll(".bill-dash-item").forEach(function(item){
     item.addEventListener("click", function(){
@@ -3144,6 +3214,21 @@ function renderBillDashboard() {
       renderBillList();
     });
   });
+
+  var incomeSaveTimer = null;
+  document.getElementById("incomeAmountInput").addEventListener("input", function(e){
+    var val = e.target.value;
+    state.user.incomeEstimate = val === "" ? null : parseFloat(val);
+    renderIncomeNetLine();
+    clearTimeout(incomeSaveTimer);
+    incomeSaveTimer = setTimeout(saveIncomeEstimate, 600);
+  });
+  document.getElementById("incomeCurrencyInput").addEventListener("change", function(e){
+    state.user.incomeCurrency = e.target.value;
+    renderIncomeNetLine();
+    saveIncomeEstimate();
+  });
+  renderIncomeNetLine();
 }
 
 function renderBillEditor() {

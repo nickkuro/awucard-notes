@@ -46,7 +46,8 @@ Each user signs in with Discord and gets their own private notes space. Data liv
 - Track recurring bills — due date, frequency, category, currency
 - Mark paid/unpaid; recurring bills auto-advance to their next due date
 - Bill reminders sent to Discord DMs, same as note reminders
-- Overview dashboard (overdue/upcoming/paid, total due) shown when no bill is selected
+- Overview dashboard (overdue/upcoming/paid, total due, normalized monthly total) shown when no bill is selected
+- Estimated monthly income input on the dashboard, with a live left-over/short-by comparison against your monthly bill total
 
 **Discord integration**
 - Discord OAuth2 login, with an optional allow-list of approved user IDs

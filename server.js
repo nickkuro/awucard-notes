@@ -313,7 +313,11 @@ app.get("/auth/discord/callback", authLimiter, async (req, res) => {
       return res.status(403).send("Your Discord account isn't on the guest list for this Ledger.");
     }
     const user = await store.upsertUser(profile);
-    req.session.user = { id: user.id, username: user.username, avatar: user.avatar, timezone: user.timezone || "UTC" };
+    req.session.user = {
+      id: user.id, username: user.username, avatar: user.avatar, timezone: user.timezone || "UTC",
+      incomeEstimate: user.incomeEstimate != null ? user.incomeEstimate : null,
+      incomeCurrency: user.incomeCurrency || "USD"
+    };
     res.redirect("/");
   } catch (err) {
     console.error(err);
@@ -337,6 +341,18 @@ app.put("/api/me/timezone", requireAuth, async (req, res) => {
   if (!timezone) return res.status(400).json({ error: "timezone required" });
   const user = await store.updateUserTimezone(req.session.user.id, timezone);
   req.session.user.timezone = timezone;
+  res.json(user);
+});
+
+app.put("/api/me/income", requireAuth, async (req, res) => {
+  const { amount, currency } = req.body || {};
+  const parsed = amount === null || amount === "" || amount === undefined ? null : Number(amount);
+  if (parsed != null && !Number.isFinite(parsed)) {
+    return res.status(400).json({ error: "amount must be a number" });
+  }
+  const user = await store.updateUserIncome(req.session.user.id, parsed, currency);
+  req.session.user.incomeEstimate = user.incomeEstimate;
+  req.session.user.incomeCurrency = user.incomeCurrency;
   res.json(user);
 });
 

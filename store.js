@@ -87,6 +87,14 @@ function updateUserTimezone(id, timezone) {
   return persist().then(() => db.users[id]);
 }
 
+function updateUserIncome(id, amount, currency) {
+  const db = load();
+  if (!db.users[id]) return Promise.resolve(null);
+  db.users[id].incomeEstimate = amount != null ? Number(amount) : null;
+  db.users[id].incomeCurrency = currency || db.users[id].incomeCurrency || "USD";
+  return persist().then(() => db.users[id]);
+}
+
 // ---------- characters ----------
 function listCharacters(ownerId) {
   const db = load();
@@ -437,7 +445,7 @@ function revokeBillsAccess(id) {
 }
 
 module.exports = {
-  upsertUser, getUser, updateUserTimezone,
+  upsertUser, getUser, updateUserTimezone, updateUserIncome,
   listCharacters, createCharacter, updateCharacter, deleteCharacter,
   listNotes, getNote, createNote, updateNote, deleteNote, clearNotes,
   listReminders, listRemindersForNote, getDueReminders, createReminder, rescheduleReminder, deleteReminder,
