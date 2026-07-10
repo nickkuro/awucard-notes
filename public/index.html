@@ -1406,7 +1406,13 @@ function api(url, opts) {
   return fetch(url, Object.assign({headers:{"Content-Type":"application/json"}}, opts))
     .then(function(r){
       if(r.status===401){showLogin();throw new Error("unauth");}
-      if(!r.ok) throw new Error("request failed");
+      if(!r.ok){
+        return r.json().catch(function(){return {};}).then(function(body){
+          var msg = (body && body.error) || "Something went wrong. Try again.";
+          showToast(msg);
+          throw new Error(msg);
+        });
+      }
       return r.status===204?null:r.json();
     });
 }

@@ -36,12 +36,60 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 1000 * 60 * 60 * 24 * 30 }
 }));
 
+function renderErrorPage(title, message) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title} — Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#14181c; --surface:#1b2126; --border:#2b333a; --ink:#ece8e1; --ink-mid:#a8b4be; --accent:#e8a33d; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif; background: var(--bg); color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    text-align: center; padding: 44px 40px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--surface); max-width: 360px; width: 90%;
+  }
+  .mark { font-size: 32px; color: var(--accent); font-family: 'IBM Plex Mono', monospace; display: block; margin-bottom: 8px; }
+  h1 { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.1em; font-size: 17px; margin: 0 0 12px; }
+  p { color: var(--ink-mid); font-size: 13.5px; line-height: 1.6; margin: 0 0 26px; }
+  a.back {
+    display: inline-block; background: var(--accent); color: #1b130a;
+    padding: 11px 20px; border-radius: 7px; font-weight: 600; font-size: 14px; text-decoration: none;
+  }
+  a.back:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="mark">¶</span>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <a class="back" href="/">Back to Ledger</a>
+  </div>
+</body>
+</html>`;
+}
+
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many login attempts. Try again in a minute." }
+  handler: (req, res) => {
+    res.status(429).send(renderErrorPage(
+      "Slow down",
+      "Too many login attempts from here. Give it a minute, then try signing in again."
+    ));
+  }
 });
 
 const apiLimiter = rateLimit({
@@ -49,7 +97,7 @@ const apiLimiter = rateLimit({
   limit: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many requests. Slow down." }
+  message: { error: "Too many requests. Slow down and try again in a minute." }
 });
 
 function requireAuth(req, res, next) {
