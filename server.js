@@ -428,7 +428,19 @@ app.delete("/api/bills/:id", requireAdmin, async (req, res) => {
 });
 
 // ---------- Access allowlist (admin only) ----------
-app.get("/api/admin/allowlist", requireAdmin, (req, res) => {
+async function resolveDiscordUsername(id) {
+  const cached = store.getUser(id);
+  if (cached && cached.username) return cached.username;
+  if (!BOT_TOKEN) return null;
+  try {
+    const user = await botFetch(`/users/${id}`);
+    return (user && (user.global_name || user.username)) || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+app.get("/api/admin/allowlist", requireAdmin, async (req, res) => {
   const seen = new Set();
   const result = [];
   if (ADMIN_DISCORD_ID) {
@@ -445,6 +457,9 @@ app.get("/api/admin/allowlist", requireAdmin, (req, res) => {
     seen.add(id);
     result.push({ id, label: "", source: "env" });
   });
+  await Promise.all(result.map(async (entry) => {
+    entry.username = await resolveDiscordUsername(entry.id);
+  }));
   res.json(result);
 });
 

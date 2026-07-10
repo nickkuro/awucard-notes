@@ -1282,6 +1282,12 @@ kbd {
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
         <div class="cl-entry">
+          <div class="cl-version">v2.3.2</div>
+          <div class="cl-items">
+            <div class="cl-item new">Manage access panel now shows each account's Discord username (when known), not just the raw ID.</div>
+          </div>
+        </div>
+        <div class="cl-entry">
           <div class="cl-version">v2.3.1</div>
           <div class="cl-items">
             <div class="cl-item fix">Manage access panel now also shows accounts already allowed via ALLOWED_DISCORD_IDS and the admin account, tagged so it's clear they can't be removed from the panel.</div>
@@ -2252,11 +2258,14 @@ function accessItemRow(e) {
   var removable = e.source === "dynamic";
   var tag = e.source === "admin" ? '<span class="access-item-tag">Admin</span>'
     : e.source === "env" ? '<span class="access-item-tag">From env</span>' : '';
-  var labelRow = (e.label || tag) ? '<div class="access-item-label">'+(e.label?esc(e.label):'')+tag+'</div>' : '';
+  var displayName = e.label || e.username || "";
+  var labelRow = (displayName || tag) ? '<div class="access-item-label">'+(displayName?esc(displayName):'')+tag+'</div>' : '';
+  var showUsernameInId = e.username && e.username !== displayName;
+  var idLine = (showUsernameInId ? esc(e.username)+' · ' : '') + esc(e.id);
   return '<div class="access-item" data-id="'+esc(e.id)+'">'+
     '<div class="access-item-info">'+
       labelRow+
-      '<div class="access-item-id">'+esc(e.id)+'</div>'+
+      '<div class="access-item-id">'+idLine+'</div>'+
     '</div>'+
     (removable
       ? '<button class="access-remove-btn" data-remove-id="'+esc(e.id)+'" aria-label="Remove">'+
