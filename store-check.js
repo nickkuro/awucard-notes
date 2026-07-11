@@ -15,6 +15,9 @@ async function checkNotesAndCharacters() {
 
   const updated = await store.updateNote(ownerId, note.id, { sticky: true });
   assert.equal(updated.sticky, true);
+  assert.strictEqual(typeof updated.sticky, 'boolean', 'sticky should round-trip as a real boolean, not 0/1');
+  assert.ok(Array.isArray(updated.tags), 'tags should round-trip as a real array, not a JSON string');
+  assert.deepEqual(updated.tags, ['shared']);
 
   const visibleNotes = await store.listNotes(ownerId, characterB.id);
   const found = visibleNotes.find((item) => item.id === note.id);

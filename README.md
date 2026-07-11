@@ -169,7 +169,9 @@ The container uses a persistent data volume so notes, sessions, and bills surviv
 
 ## Data storage
 
-Ledger stores data in a JSON file on the server rather than a database. That's simple, easy to back up, and practical for a project at this scale. If it ever needs to grow past that, the data layer in `store.js` is isolated enough to swap out without touching the rest of the app.
+Ledger stores data in a SQLite database (`data/ledger.sqlite3`), still just a single file in the same data volume — no separate database service to run or back up.
+
+Older deployments used a single `data/db.json` file instead. If Ledger finds one on startup, it migrates it into SQLite automatically, verifies the row counts match, and renames the original to `data/db.json.migrated-<timestamp>.bak` (never deletes it). If anything about the migration looks wrong, the server refuses to start rather than run on partial data, and the original `db.json` is left completely untouched.
 
 ---
 

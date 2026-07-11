@@ -1,142 +1,412 @@
 // store.js
 const fs = require("fs");
 const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 
 const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "db.json");
+const SQLITE_FILE = path.join(DATA_DIR, "ledger.sqlite3");
+const BUILDING_FILE = path.join(DATA_DIR, "ledger.sqlite3.building");
+const LEGACY_JSON_FILE = path.join(DATA_DIR, "db.json");
 
-let cache = null;
-let writeQueue = Promise.resolve();
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY NOT NULL,
+  username TEXT,
+  avatar TEXT,
+  timezone TEXT,
+  incomeEstimate REAL,
+  incomeCurrency TEXT,
+  updatedAt INTEGER
+);
 
-function ensureFile() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({
-      users: {}, characters: {}, notes: {}, reminders: {},
-      bills: {}, allowlist: {}, billsAccess: {}
-    }, null, 2));
-  }
+CREATE TABLE IF NOT EXISTS characters (
+  id TEXT PRIMARY KEY NOT NULL,
+  ownerId TEXT,
+  name TEXT,
+  color TEXT,
+  createdAt INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_characters_owner ON characters(ownerId);
+
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY NOT NULL,
+  ownerId TEXT,
+  characterId TEXT,
+  title TEXT,
+  body TEXT,
+  tags TEXT,
+  sticky INTEGER,
+  dueDate TEXT,
+  createdAt INTEGER,
+  updatedAt INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_notes_owner ON notes(ownerId);
+
+CREATE TABLE IF NOT EXISTS reminders (
+  id TEXT PRIMARY KEY NOT NULL,
+  ownerId TEXT,
+  noteId TEXT,
+  noteTitle TEXT,
+  fireAt INTEGER,
+  repeat INTEGER,
+  repeatInterval INTEGER,
+  createdAt INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_owner ON reminders(ownerId);
+CREATE INDEX IF NOT EXISTS idx_reminders_fireAt ON reminders(fireAt);
+
+CREATE TABLE IF NOT EXISTS bills (
+  id TEXT PRIMARY KEY NOT NULL,
+  ownerId TEXT,
+  name TEXT,
+  amount REAL,
+  currency TEXT,
+  dueDate TEXT,
+  frequency TEXT,
+  category TEXT,
+  autoPay INTEGER,
+  url TEXT,
+  color TEXT,
+  notes TEXT,
+  reminderDays INTEGER,
+  paid INTEGER,
+  paidDates TEXT,
+  lastReminderSent TEXT,
+  createdAt INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_bills_owner ON bills(ownerId);
+
+CREATE TABLE IF NOT EXISTS allowlist (
+  id TEXT PRIMARY KEY NOT NULL,
+  label TEXT,
+  addedAt INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS billsAccess (
+  id TEXT PRIMARY KEY NOT NULL,
+  addedAt INTEGER
+);
+`;
+
+let db = null;
+
+function applyPragmas(handle) {
+  handle.exec("PRAGMA journal_mode = WAL");
+  handle.exec("PRAGMA foreign_keys = OFF");
+  handle.exec("PRAGMA synchronous = NORMAL");
 }
 
-function load() {
-  if (cache) return cache;
-  ensureFile();
-  cache = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  if (!cache.users) cache.users = {};
-  if (!cache.characters) cache.characters = {};
-  if (!cache.notes) cache.notes = {};
-  if (!cache.reminders) cache.reminders = {};
-  if (!cache.bills) cache.bills = {};
-  if (!cache.allowlist) cache.allowlist = {};
-  if (!cache.billsAccess) cache.billsAccess = {};
+// Migrates a legacy data/db.json into the (already schema-created) handle.
+// Throws on any error or row-count mismatch -- callers must not treat the
+// handle as valid data if this throws.
+function migrateFromJson(handle, jsonPath) {
+  const data = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 
-  // Migrate bills predating per-user ownership to the original admin.
-  const legacyOwner = process.env.ADMIN_DISCORD_ID;
-  if (legacyOwner) {
-    let migrated = false;
-    Object.values(cache.bills).forEach((b) => {
-      if (!b.ownerId) { b.ownerId = legacyOwner; migrated = true; }
-    });
-    if (migrated) persist();
-  }
-
-  return cache;
-}
-
-function persist() {
-  const data = cache;
-  writeQueue = writeQueue.then(() =>
-    new Promise((resolve, reject) => {
-      fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), (err) => {
-        if (err) reject(err); else resolve();
+  handle.exec("BEGIN");
+  try {
+    const insertUser = handle.prepare(
+      `INSERT INTO users (id, username, avatar, timezone, incomeEstimate, incomeCurrency, updatedAt)
+       VALUES (:id, :username, :avatar, :timezone, :incomeEstimate, :incomeCurrency, :updatedAt)`
+    );
+    Object.values(data.users || {}).forEach((u) => {
+      insertUser.run({
+        id: u.id,
+        username: u.username ?? null,
+        avatar: u.avatar ?? null,
+        timezone: u.timezone ?? null,
+        incomeEstimate: u.incomeEstimate != null ? Number(u.incomeEstimate) : null,
+        incomeCurrency: u.incomeCurrency ?? null,
+        updatedAt: u.updatedAt ?? null
       });
-    })
-  );
-  return writeQueue;
+    });
+
+    const insertCharacter = handle.prepare(
+      `INSERT INTO characters (id, ownerId, name, color, createdAt)
+       VALUES (:id, :ownerId, :name, :color, :createdAt)`
+    );
+    Object.values(data.characters || {}).forEach((c) => {
+      insertCharacter.run({
+        id: c.id,
+        ownerId: c.ownerId ?? null,
+        name: c.name ?? null,
+        color: c.color ?? null,
+        createdAt: c.createdAt ?? null
+      });
+    });
+
+    const insertNote = handle.prepare(
+      `INSERT INTO notes (id, ownerId, characterId, title, body, tags, sticky, dueDate, createdAt, updatedAt)
+       VALUES (:id, :ownerId, :characterId, :title, :body, :tags, :sticky, :dueDate, :createdAt, :updatedAt)`
+    );
+    Object.values(data.notes || {}).forEach((n) => {
+      insertNote.run({
+        id: n.id,
+        ownerId: n.ownerId ?? null,
+        characterId: n.characterId ?? null,
+        title: n.title ?? "",
+        body: n.body ?? "",
+        tags: JSON.stringify(Array.isArray(n.tags) ? n.tags : []),
+        sticky: n.sticky ? 1 : 0,
+        dueDate: n.dueDate ?? null,
+        createdAt: n.createdAt ?? null,
+        updatedAt: n.updatedAt ?? null
+      });
+    });
+
+    const insertReminder = handle.prepare(
+      `INSERT INTO reminders (id, ownerId, noteId, noteTitle, fireAt, repeat, repeatInterval, createdAt)
+       VALUES (:id, :ownerId, :noteId, :noteTitle, :fireAt, :repeat, :repeatInterval, :createdAt)`
+    );
+    Object.values(data.reminders || {}).forEach((r) => {
+      insertReminder.run({
+        id: r.id,
+        ownerId: r.ownerId ?? null,
+        noteId: r.noteId ?? null,
+        noteTitle: r.noteTitle ?? "",
+        fireAt: r.fireAt ?? null,
+        repeat: r.repeat ? 1 : 0,
+        repeatInterval: r.repeatInterval ?? null,
+        createdAt: r.createdAt ?? null
+      });
+    });
+
+    const insertBill = handle.prepare(
+      `INSERT INTO bills (id, ownerId, name, amount, currency, dueDate, frequency, category, autoPay, url, color, notes, reminderDays, paid, paidDates, lastReminderSent, createdAt)
+       VALUES (:id, :ownerId, :name, :amount, :currency, :dueDate, :frequency, :category, :autoPay, :url, :color, :notes, :reminderDays, :paid, :paidDates, :lastReminderSent, :createdAt)`
+    );
+    Object.values(data.bills || {}).forEach((b) => {
+      insertBill.run({
+        id: b.id,
+        ownerId: b.ownerId ?? null,
+        name: b.name ?? "",
+        amount: b.amount != null ? Number(b.amount) : 0,
+        currency: b.currency ?? "USD",
+        dueDate: b.dueDate ?? null,
+        frequency: b.frequency ?? "monthly",
+        category: b.category ?? "Other",
+        autoPay: b.autoPay ? 1 : 0,
+        url: b.url ?? "",
+        color: b.color ?? "#c9605a",
+        notes: b.notes ?? "",
+        reminderDays: b.reminderDays != null ? Number(b.reminderDays) : null,
+        paid: b.paid ? 1 : 0,
+        paidDates: JSON.stringify(Array.isArray(b.paidDates) ? b.paidDates : []),
+        lastReminderSent: b.lastReminderSent ?? null,
+        createdAt: b.createdAt ?? null
+      });
+    });
+
+    const insertAllowlist = handle.prepare(
+      `INSERT INTO allowlist (id, label, addedAt) VALUES (:id, :label, :addedAt)`
+    );
+    Object.values(data.allowlist || {}).forEach((e) => {
+      insertAllowlist.run({ id: e.id, label: e.label ?? "", addedAt: e.addedAt ?? null });
+    });
+
+    const insertBillsAccess = handle.prepare(
+      `INSERT INTO billsAccess (id, addedAt) VALUES (:id, :addedAt)`
+    );
+    Object.values(data.billsAccess || {}).forEach((e) => {
+      insertBillsAccess.run({ id: e.id, addedAt: e.addedAt ?? null });
+    });
+
+    handle.exec("COMMIT");
+  } catch (err) {
+    handle.exec("ROLLBACK");
+    throw err;
+  }
+
+  // Independent verification pass beyond the transaction itself: every
+  // collection's row count must match the source JSON exactly, or we
+  // treat the whole migration as failed.
+  const collections = ["users", "characters", "notes", "reminders", "bills", "allowlist", "billsAccess"];
+  for (const table of collections) {
+    const expected = data[table] ? Object.keys(data[table]).length : 0;
+    const actual = handle.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n;
+    if (actual !== expected) {
+      throw new Error(`Migration verification failed for "${table}": expected ${expected} rows, found ${actual}.`);
+    }
+  }
 }
+
+function initDb() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+  if (fs.existsSync(SQLITE_FILE)) {
+    // Already fully initialized/migrated in a previous run.
+    db = new DatabaseSync(SQLITE_FILE);
+    applyPragmas(db);
+    return;
+  }
+
+  // Clean up any incomplete attempt left behind by a crash mid-migration.
+  if (fs.existsSync(BUILDING_FILE)) fs.rmSync(BUILDING_FILE);
+
+  const building = new DatabaseSync(BUILDING_FILE);
+  applyPragmas(building);
+  building.exec(SCHEMA_SQL);
+
+  if (fs.existsSync(LEGACY_JSON_FILE)) {
+    migrateFromJson(building, LEGACY_JSON_FILE); // throws on any problem
+  }
+
+  building.close();
+  // Only becomes the "real" file once schema + migration + verification
+  // have all fully succeeded -- this rename is the atomic success signal.
+  fs.renameSync(BUILDING_FILE, SQLITE_FILE);
+
+  if (fs.existsSync(LEGACY_JSON_FILE)) {
+    const backupPath = `${LEGACY_JSON_FILE}.migrated-${Date.now()}.bak`;
+    fs.renameSync(LEGACY_JSON_FILE, backupPath);
+    console.log(`[store] Migrated data/db.json to SQLite (data/${path.basename(SQLITE_FILE)}). Original kept as data/${path.basename(backupPath)}.`);
+  }
+
+  db = new DatabaseSync(SQLITE_FILE);
+  applyPragmas(db);
+}
+
+initDb();
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-// ---------- users ----------
-function upsertUser(discordUser) {
-  const db = load();
-  const existing = db.users[discordUser.id] || {};
-  db.users[discordUser.id] = {
-    ...existing,
-    id: discordUser.id,
-    username: discordUser.username,
-    avatar: discordUser.avatar
-      ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-      : null,
-    updatedAt: Date.now()
+// ---------- row -> JS object mappers ----------
+function rowToUser(row) {
+  if (!row) return null;
+  return {
+    id: row.id, username: row.username, avatar: row.avatar, timezone: row.timezone,
+    incomeEstimate: row.incomeEstimate, incomeCurrency: row.incomeCurrency, updatedAt: row.updatedAt
   };
-  return persist().then(() => db.users[discordUser.id]);
+}
+
+function rowToCharacter(row) {
+  if (!row) return null;
+  return { id: row.id, ownerId: row.ownerId, name: row.name, color: row.color, createdAt: row.createdAt };
+}
+
+function rowToNote(row) {
+  if (!row) return null;
+  return {
+    id: row.id, ownerId: row.ownerId, characterId: row.characterId,
+    title: row.title, body: row.body,
+    tags: row.tags ? JSON.parse(row.tags) : [],
+    sticky: !!row.sticky, dueDate: row.dueDate,
+    createdAt: row.createdAt, updatedAt: row.updatedAt
+  };
+}
+
+function rowToReminder(row) {
+  if (!row) return null;
+  return {
+    id: row.id, ownerId: row.ownerId, noteId: row.noteId, noteTitle: row.noteTitle,
+    fireAt: row.fireAt, repeat: !!row.repeat, repeatInterval: row.repeatInterval, createdAt: row.createdAt
+  };
+}
+
+function rowToBill(row) {
+  if (!row) return null;
+  return {
+    id: row.id, ownerId: row.ownerId, name: row.name, amount: row.amount, currency: row.currency,
+    dueDate: row.dueDate, frequency: row.frequency, category: row.category,
+    autoPay: !!row.autoPay, url: row.url, color: row.color, notes: row.notes,
+    reminderDays: row.reminderDays, paid: !!row.paid,
+    paidDates: row.paidDates ? JSON.parse(row.paidDates) : [],
+    lastReminderSent: row.lastReminderSent, createdAt: row.createdAt
+  };
+}
+
+function rowToAllowlistEntry(row) {
+  if (!row) return null;
+  return { id: row.id, label: row.label, addedAt: row.addedAt };
+}
+
+function rowToBillsAccessEntry(row) {
+  if (!row) return null;
+  return { id: row.id, addedAt: row.addedAt };
+}
+
+// ---------- users ----------
+async function upsertUser(discordUser) {
+  const existing = db.prepare("SELECT * FROM users WHERE id = :id").get({ id: discordUser.id });
+  const avatar = discordUser.avatar
+    ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+    : null;
+  const updatedAt = Date.now();
+  if (existing) {
+    db.prepare("UPDATE users SET username = :username, avatar = :avatar, updatedAt = :updatedAt WHERE id = :id")
+      .run({ id: discordUser.id, username: discordUser.username, avatar, updatedAt });
+  } else {
+    db.prepare(
+      `INSERT INTO users (id, username, avatar, timezone, incomeEstimate, incomeCurrency, updatedAt)
+       VALUES (:id, :username, :avatar, NULL, NULL, NULL, :updatedAt)`
+    ).run({ id: discordUser.id, username: discordUser.username, avatar, updatedAt });
+  }
+  return rowToUser(db.prepare("SELECT * FROM users WHERE id = :id").get({ id: discordUser.id }));
 }
 
 function getUser(id) {
-  const db = load();
-  return db.users[id] || null;
+  return rowToUser(db.prepare("SELECT * FROM users WHERE id = :id").get({ id }));
 }
 
-function updateUserTimezone(id, timezone) {
-  const db = load();
-  if (!db.users[id]) return Promise.resolve(null);
-  db.users[id].timezone = timezone;
-  return persist().then(() => db.users[id]);
+async function updateUserTimezone(id, timezone) {
+  const existing = db.prepare("SELECT * FROM users WHERE id = :id").get({ id });
+  if (!existing) return null;
+  db.prepare("UPDATE users SET timezone = :timezone WHERE id = :id").run({ id, timezone });
+  return rowToUser({ ...existing, timezone });
 }
 
-function updateUserIncome(id, amount, currency) {
-  const db = load();
-  if (!db.users[id]) return Promise.resolve(null);
-  db.users[id].incomeEstimate = amount != null ? Number(amount) : null;
-  db.users[id].incomeCurrency = currency || db.users[id].incomeCurrency || "USD";
-  return persist().then(() => db.users[id]);
+async function updateUserIncome(id, amount, currency) {
+  const existing = db.prepare("SELECT * FROM users WHERE id = :id").get({ id });
+  if (!existing) return null;
+  const incomeEstimate = amount != null ? Number(amount) : null;
+  const incomeCurrency = currency || existing.incomeCurrency || "USD";
+  db.prepare("UPDATE users SET incomeEstimate = :incomeEstimate, incomeCurrency = :incomeCurrency WHERE id = :id")
+    .run({ id, incomeEstimate, incomeCurrency });
+  return rowToUser({ ...existing, incomeEstimate, incomeCurrency });
 }
 
 // ---------- characters ----------
 function listCharacters(ownerId) {
-  const db = load();
-  return Object.values(db.characters)
-    .filter((c) => c.ownerId === ownerId)
+  return db.prepare("SELECT * FROM characters WHERE ownerId = :ownerId").all({ ownerId })
+    .map(rowToCharacter)
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
-function createCharacter(ownerId, partial) {
-  const db = load();
-  const id = uid();
-  const character = { id, ownerId, name: (partial.name || "").slice(0, 64), color: partial.color || "#e8a33d", createdAt: Date.now() };
-  db.characters[id] = character;
-  return persist().then(() => character);
+async function createCharacter(ownerId, partial) {
+  const character = {
+    id: uid(), ownerId, name: (partial.name || "").slice(0, 64),
+    color: partial.color || "#e8a33d", createdAt: Date.now()
+  };
+  db.prepare("INSERT INTO characters (id, ownerId, name, color, createdAt) VALUES (:id, :ownerId, :name, :color, :createdAt)")
+    .run({ id: character.id, ownerId: character.ownerId, name: character.name, color: character.color, createdAt: character.createdAt });
+  return character;
 }
 
-function updateCharacter(ownerId, id, partial) {
-  const db = load();
-  const c = db.characters[id];
-  if (!c || c.ownerId !== ownerId) return Promise.resolve(null);
-  if (typeof partial.name === "string") c.name = partial.name.slice(0, 64);
-  if (typeof partial.color === "string") c.color = partial.color;
-  return persist().then(() => c);
+async function updateCharacter(ownerId, id, partial) {
+  const row = db.prepare("SELECT * FROM characters WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  const name = typeof partial.name === "string" ? partial.name.slice(0, 64) : row.name;
+  const color = typeof partial.color === "string" ? partial.color : row.color;
+  db.prepare("UPDATE characters SET name = :name, color = :color WHERE id = :id").run({ id, name, color });
+  return rowToCharacter({ ...row, name, color });
 }
 
-function deleteCharacter(ownerId, id) {
-  const db = load();
-  const c = db.characters[id];
-  if (!c || c.ownerId !== ownerId) return Promise.resolve(false);
-  delete db.characters[id];
-  Object.keys(db.notes).forEach((nid) => {
-    if (db.notes[nid].characterId === id && db.notes[nid].ownerId === ownerId) delete db.notes[nid];
-  });
-  return persist().then(() => true);
+async function deleteCharacter(ownerId, id) {
+  const row = db.prepare("SELECT * FROM characters WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare("DELETE FROM characters WHERE id = :id").run({ id });
+  // Matches original behavior: only this owner's notes for this character are removed.
+  db.prepare("DELETE FROM notes WHERE characterId = :characterId AND ownerId = :ownerId")
+    .run({ characterId: id, ownerId });
+  return true;
 }
 
 // ---------- notes ----------
 function listNotes(ownerId, characterId) {
-  const db = load();
   const requestedCharacterId = characterId || null;
-  return Object.values(db.notes)
-    .filter((n) => n.ownerId === ownerId)
+  return db.prepare("SELECT * FROM notes WHERE ownerId = :ownerId").all({ ownerId })
+    .map(rowToNote)
     .filter((n) => {
       if (characterId === "__all__") return true;
       return n.sticky || (n.characterId || null) === requestedCharacterId;
@@ -148,124 +418,128 @@ function listNotes(ownerId, characterId) {
 }
 
 function getNote(ownerId, id) {
-  const db = load();
-  const note = db.notes[id];
-  if (!note || note.ownerId !== ownerId) return null;
-  return note;
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  return rowToNote(row);
 }
 
-function createNote(ownerId, partial) {
-  const db = load();
-  const id = uid();
+async function createNote(ownerId, partial) {
   const now = Date.now();
   const note = {
-    id,
-    ownerId,
+    id: uid(), ownerId,
     characterId: partial.characterId || null,
     title: partial.title || "",
     body: partial.body || "",
     tags: Array.isArray(partial.tags) ? partial.tags : [],
     sticky: Boolean(partial.sticky),
     dueDate: partial.dueDate || null,
-    createdAt: now,
-    updatedAt: now
+    createdAt: now, updatedAt: now
   };
-  db.notes[id] = note;
-  return persist().then(() => note);
+  db.prepare(
+    `INSERT INTO notes (id, ownerId, characterId, title, body, tags, sticky, dueDate, createdAt, updatedAt)
+     VALUES (:id, :ownerId, :characterId, :title, :body, :tags, :sticky, :dueDate, :createdAt, :updatedAt)`
+  ).run({
+    id: note.id, ownerId: note.ownerId, characterId: note.characterId, title: note.title, body: note.body,
+    tags: JSON.stringify(note.tags), sticky: note.sticky ? 1 : 0, dueDate: note.dueDate,
+    createdAt: note.createdAt, updatedAt: note.updatedAt
+  });
+  return note;
 }
 
-function updateNote(ownerId, id, partial) {
-  const db = load();
-  const note = db.notes[id];
-  if (!note || note.ownerId !== ownerId) return Promise.resolve(null);
+async function updateNote(ownerId, id, partial) {
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  const note = rowToNote(row);
   if (typeof partial.title === "string") note.title = partial.title;
   if (typeof partial.body === "string") note.body = partial.body;
   if (Array.isArray(partial.tags)) note.tags = partial.tags;
   if (typeof partial.sticky === "boolean") note.sticky = partial.sticky;
   if ("dueDate" in partial) note.dueDate = partial.dueDate || null;
   note.updatedAt = Date.now();
-  return persist().then(() => note);
+  db.prepare(
+    `UPDATE notes SET title = :title, body = :body, tags = :tags, sticky = :sticky, dueDate = :dueDate, updatedAt = :updatedAt
+     WHERE id = :id`
+  ).run({
+    id, title: note.title, body: note.body, tags: JSON.stringify(note.tags),
+    sticky: note.sticky ? 1 : 0, dueDate: note.dueDate, updatedAt: note.updatedAt
+  });
+  return note;
 }
 
-function deleteNote(ownerId, id) {
-  const db = load();
-  const note = db.notes[id];
-  if (!note || note.ownerId !== ownerId) return Promise.resolve(false);
-  delete db.notes[id];
-  // Delete associated reminders
-  Object.keys(db.reminders).forEach((rid) => {
-    if (db.reminders[rid].noteId === id) delete db.reminders[rid];
-  });
-  return persist().then(() => true);
+async function deleteNote(ownerId, id) {
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare("DELETE FROM notes WHERE id = :id").run({ id });
+  db.prepare("DELETE FROM reminders WHERE noteId = :noteId").run({ noteId: id });
+  return true;
 }
 
-function clearNotes(ownerId, characterId) {
-  const db = load();
-  Object.keys(db.notes).forEach((id) => {
-    const n = db.notes[id];
-    if (n.ownerId !== ownerId) return;
-    if (characterId === "__all__" || (n.characterId || null) === (characterId || null)) {
-      delete db.notes[id];
-      Object.keys(db.reminders).forEach((rid) => {
-        if (db.reminders[rid].noteId === id) delete db.reminders[rid];
-      });
-    }
-  });
-  return persist();
+async function clearNotes(ownerId, characterId) {
+  const requestedCharacterId = characterId || null;
+  const rows = db.prepare("SELECT id, characterId FROM notes WHERE ownerId = :ownerId").all({ ownerId });
+  const idsToDelete = rows
+    .filter((n) => characterId === "__all__" || (n.characterId || null) === requestedCharacterId)
+    .map((n) => n.id);
+  for (const id of idsToDelete) {
+    db.prepare("DELETE FROM notes WHERE id = :id").run({ id });
+    db.prepare("DELETE FROM reminders WHERE noteId = :noteId").run({ noteId: id });
+  }
 }
 
 // ---------- reminders ----------
 function listReminders(ownerId) {
-  const db = load();
-  return Object.values(db.reminders)
-    .filter((r) => r.ownerId === ownerId)
+  return db.prepare("SELECT * FROM reminders WHERE ownerId = :ownerId").all({ ownerId })
+    .map(rowToReminder)
     .sort((a, b) => a.fireAt - b.fireAt);
 }
 
 function listRemindersForNote(ownerId, noteId) {
-  const db = load();
-  return Object.values(db.reminders)
-    .filter((r) => r.ownerId === ownerId && r.noteId === noteId)
+  return db.prepare("SELECT * FROM reminders WHERE ownerId = :ownerId AND noteId = :noteId").all({ ownerId, noteId })
+    .map(rowToReminder)
     .sort((a, b) => a.fireAt - b.fireAt);
 }
 
 function getDueReminders() {
-  const db = load();
   const now = Date.now();
-  return Object.values(db.reminders).filter((r) => r.fireAt <= now);
+  return db.prepare("SELECT * FROM reminders WHERE fireAt <= :now").all({ now }).map(rowToReminder);
 }
 
-function createReminder(ownerId, partial) {
-  const db = load();
-  const id = uid();
+async function createReminder(ownerId, partial) {
   const reminder = {
-    id,
-    ownerId,
+    id: uid(), ownerId,
     noteId: partial.noteId,
     noteTitle: partial.noteTitle || "",
     fireAt: partial.fireAt,
     repeat: partial.repeat || false,
-    repeatInterval: partial.repeatInterval || null, // ms
+    repeatInterval: partial.repeatInterval || null,
     createdAt: Date.now()
   };
-  db.reminders[id] = reminder;
-  return persist().then(() => reminder);
+  db.prepare(
+    `INSERT INTO reminders (id, ownerId, noteId, noteTitle, fireAt, repeat, repeatInterval, createdAt)
+     VALUES (:id, :ownerId, :noteId, :noteTitle, :fireAt, :repeat, :repeatInterval, :createdAt)`
+  ).run({
+    id: reminder.id, ownerId: reminder.ownerId, noteId: reminder.noteId, noteTitle: reminder.noteTitle,
+    fireAt: reminder.fireAt, repeat: reminder.repeat ? 1 : 0, repeatInterval: reminder.repeatInterval,
+    createdAt: reminder.createdAt
+  });
+  return reminder;
 }
 
-function rescheduleReminder(id, intervalMs) {
-  const db = load();
-  const r = db.reminders[id];
-  if (!r) return Promise.resolve(null);
-  r.fireAt = Date.now() + intervalMs;
-  return persist().then(() => r);
+async function rescheduleReminder(id, intervalMs) {
+  const row = db.prepare("SELECT * FROM reminders WHERE id = :id").get({ id });
+  if (!row) return null;
+  const fireAt = Date.now() + intervalMs;
+  db.prepare("UPDATE reminders SET fireAt = :fireAt WHERE id = :id").run({ id, fireAt });
+  const reminder = rowToReminder(row);
+  reminder.fireAt = fireAt;
+  return reminder;
 }
 
-function deleteReminder(ownerId, id) {
-  const db = load();
-  const r = db.reminders[id];
-  if (!r || r.ownerId !== ownerId) return Promise.resolve(false);
-  delete db.reminders[id];
-  return persist().then(() => true);
+async function deleteReminder(ownerId, id) {
+  const row = db.prepare("SELECT * FROM reminders WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare("DELETE FROM reminders WHERE id = :id").run({ id });
+  return true;
 }
 
 // ---------- bills (per-user, gated by bills access) ----------
@@ -297,9 +571,8 @@ function advanceDueDate(dateStr, frequency) {
 }
 
 function listBills(ownerId) {
-  const db = load();
-  return Object.values(db.bills)
-    .filter((b) => b.ownerId === ownerId)
+  return db.prepare("SELECT * FROM bills WHERE ownerId = :ownerId").all({ ownerId })
+    .map(rowToBill)
     .sort((a, b) => {
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       if (a.dueDate) return -1;
@@ -309,18 +582,14 @@ function listBills(ownerId) {
 }
 
 function getBill(ownerId, id) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill || bill.ownerId !== ownerId) return null;
-  return bill;
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  return rowToBill(row);
 }
 
-function createBill(ownerId, partial) {
-  const db = load();
-  const id = uid();
+async function createBill(ownerId, partial) {
   const bill = {
-    id,
-    ownerId,
+    id: uid(), ownerId,
     name:         partial.name || "New bill",
     amount:       parseFloat(partial.amount) || 0,
     currency:     partial.currency || "USD",
@@ -337,26 +606,44 @@ function createBill(ownerId, partial) {
     lastReminderSent: null,
     createdAt:    Date.now()
   };
-  db.bills[id] = bill;
-  return persist().then(() => bill);
+  db.prepare(
+    `INSERT INTO bills (id, ownerId, name, amount, currency, dueDate, frequency, category, autoPay, url, color, notes, reminderDays, paid, paidDates, lastReminderSent, createdAt)
+     VALUES (:id, :ownerId, :name, :amount, :currency, :dueDate, :frequency, :category, :autoPay, :url, :color, :notes, :reminderDays, :paid, :paidDates, :lastReminderSent, :createdAt)`
+  ).run({
+    id: bill.id, ownerId: bill.ownerId, name: bill.name, amount: bill.amount, currency: bill.currency,
+    dueDate: bill.dueDate, frequency: bill.frequency, category: bill.category, autoPay: bill.autoPay ? 1 : 0,
+    url: bill.url, color: bill.color, notes: bill.notes, reminderDays: bill.reminderDays,
+    paid: bill.paid ? 1 : 0, paidDates: JSON.stringify(bill.paidDates), lastReminderSent: bill.lastReminderSent,
+    createdAt: bill.createdAt
+  });
+  return bill;
 }
 
-function updateBill(ownerId, id, partial) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill || bill.ownerId !== ownerId) return Promise.resolve(null);
+async function updateBill(ownerId, id, partial) {
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  const bill = rowToBill(row);
   // "paid" is intentionally excluded -- it's only mutated via markBillPaid/markBillUnpaid,
   // which also keep paidDates and dueDate advancement in sync.
   const fields = ["name","amount","currency","dueDate","frequency","category","autoPay","url","color","notes","reminderDays"];
   fields.forEach(f => { if (f in partial) bill[f] = partial[f]; });
   if (typeof bill.amount === "string") bill.amount = parseFloat(bill.amount) || 0;
-  return persist().then(() => bill);
+  db.prepare(
+    `UPDATE bills SET name=:name, amount=:amount, currency=:currency, dueDate=:dueDate, frequency=:frequency,
+     category=:category, autoPay=:autoPay, url=:url, color=:color, notes=:notes, reminderDays=:reminderDays
+     WHERE id=:id`
+  ).run({
+    id, name: bill.name, amount: bill.amount, currency: bill.currency, dueDate: bill.dueDate,
+    frequency: bill.frequency, category: bill.category, autoPay: bill.autoPay ? 1 : 0, url: bill.url,
+    color: bill.color, notes: bill.notes, reminderDays: bill.reminderDays
+  });
+  return bill;
 }
 
-function markBillPaid(ownerId, id) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill || bill.ownerId !== ownerId) return Promise.resolve(null);
+async function markBillPaid(ownerId, id) {
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  const bill = rowToBill(row);
   const today = dateToStr(new Date());
   if (!bill.paidDates) bill.paidDates = [];
   bill.paidDates.unshift(today);
@@ -366,82 +653,87 @@ function markBillPaid(ownerId, id) {
     bill.dueDate = advanceDueDate(bill.dueDate, bill.frequency);
     bill.paid = false;
   }
-  return persist().then(() => bill);
+  db.prepare("UPDATE bills SET dueDate = :dueDate, paid = :paid, paidDates = :paidDates WHERE id = :id")
+    .run({ id, dueDate: bill.dueDate, paid: bill.paid ? 1 : 0, paidDates: JSON.stringify(bill.paidDates) });
+  return bill;
 }
 
-function markBillUnpaid(ownerId, id) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill || bill.ownerId !== ownerId) return Promise.resolve(null);
+async function markBillUnpaid(ownerId, id) {
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  db.prepare("UPDATE bills SET paid = 0 WHERE id = :id").run({ id });
+  const bill = rowToBill(row);
   bill.paid = false;
-  return persist().then(() => bill);
+  return bill;
 }
 
-function deleteBill(ownerId, id) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill || bill.ownerId !== ownerId) return Promise.resolve(false);
-  delete db.bills[id];
-  return persist().then(() => true);
+async function deleteBill(ownerId, id) {
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare("DELETE FROM bills WHERE id = :id").run({ id });
+  return true;
 }
 
 // Internal-only: unscoped by owner, used by the server's bill-reminder job.
 function getAllBills() {
-  const db = load();
-  return Object.values(db.bills);
+  return db.prepare("SELECT * FROM bills").all().map(rowToBill);
 }
 
-function markBillReminderSent(id, dateStr) {
-  const db = load();
-  const bill = db.bills[id];
-  if (!bill) return Promise.resolve(null);
+async function markBillReminderSent(id, dateStr) {
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  if (!row) return null;
+  db.prepare("UPDATE bills SET lastReminderSent = :lastReminderSent WHERE id = :id").run({ id, lastReminderSent: dateStr });
+  const bill = rowToBill(row);
   bill.lastReminderSent = dateStr;
-  return persist().then(() => bill);
+  return bill;
 }
 
 // ---------- allowlist (admin-managed guest list) ----------
 function listAllowlist() {
-  const db = load();
-  return Object.values(db.allowlist).sort((a, b) => a.addedAt - b.addedAt);
+  return db.prepare("SELECT * FROM allowlist").all()
+    .map(rowToAllowlistEntry)
+    .sort((a, b) => a.addedAt - b.addedAt);
 }
 
-function addAllowlistEntry(id, label) {
-  const db = load();
+async function addAllowlistEntry(id, label) {
   id = String(id).trim();
-  db.allowlist[id] = { id, label: (label || "").slice(0, 64), addedAt: Date.now() };
-  return persist().then(() => db.allowlist[id]);
+  const entry = { id, label: (label || "").slice(0, 64), addedAt: Date.now() };
+  db.prepare("INSERT OR REPLACE INTO allowlist (id, label, addedAt) VALUES (:id, :label, :addedAt)")
+    .run({ id: entry.id, label: entry.label, addedAt: entry.addedAt });
+  return entry;
 }
 
-function removeAllowlistEntry(id) {
-  const db = load();
-  if (!db.allowlist[id]) return Promise.resolve(false);
-  delete db.allowlist[id];
-  return persist().then(() => true);
+async function removeAllowlistEntry(id) {
+  const row = db.prepare("SELECT * FROM allowlist WHERE id = :id").get({ id });
+  if (!row) return false;
+  db.prepare("DELETE FROM allowlist WHERE id = :id").run({ id });
+  return true;
 }
 
 // ---------- bills access (admin-granted, per user) ----------
 function listBillsAccess() {
-  const db = load();
-  return Object.values(db.billsAccess).sort((a, b) => a.addedAt - b.addedAt);
+  return db.prepare("SELECT * FROM billsAccess").all()
+    .map(rowToBillsAccessEntry)
+    .sort((a, b) => a.addedAt - b.addedAt);
 }
 
 function hasBillsAccess(id) {
-  const db = load();
-  return !!db.billsAccess[id];
+  return !!db.prepare("SELECT 1 AS present FROM billsAccess WHERE id = :id").get({ id });
 }
 
-function grantBillsAccess(id) {
-  const db = load();
+async function grantBillsAccess(id) {
   id = String(id).trim();
-  db.billsAccess[id] = { id, addedAt: Date.now() };
-  return persist().then(() => db.billsAccess[id]);
+  const entry = { id, addedAt: Date.now() };
+  db.prepare("INSERT OR REPLACE INTO billsAccess (id, addedAt) VALUES (:id, :addedAt)")
+    .run({ id: entry.id, addedAt: entry.addedAt });
+  return entry;
 }
 
-function revokeBillsAccess(id) {
-  const db = load();
-  if (!db.billsAccess[id]) return Promise.resolve(false);
-  delete db.billsAccess[id];
-  return persist().then(() => true);
+async function revokeBillsAccess(id) {
+  const row = db.prepare("SELECT * FROM billsAccess WHERE id = :id").get({ id });
+  if (!row) return false;
+  db.prepare("DELETE FROM billsAccess WHERE id = :id").run({ id });
+  return true;
 }
 
 module.exports = {

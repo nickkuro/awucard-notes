@@ -4,7 +4,7 @@
   "description": "Ledger notes app with Discord login, self-hosted",
   "type": "commonjs",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "start": "node server.js",
