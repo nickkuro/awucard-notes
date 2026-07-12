@@ -1277,7 +1277,7 @@ kbd {
     <div class="info-panel" id="tab-about">
       <div class="info-section">
         <div class="info-logo">¶ LEDGER</div>
-        <p class="info-sub">Version 2.0.1 — a private note-keeping app for characters and stories, built with Discord login so your group can each have their own space.</p>
+        <p class="info-sub">Version 2.9 — a private space for character notes, a calendar, and bill tracking, built with Discord login so your group can each have their own space.</p>
       </div>
       <div class="info-section">
         <div class="info-heading">How it works</div>
@@ -1306,12 +1306,16 @@ kbd {
           <div class="info-item-body">Pin any note to keep it visible across character views. Sticky notes appear at the top of the list wherever you are.</div>
         </div>
         <div class="info-item">
+          <div class="info-item-title">Restore previous version</div>
+          <div class="info-item-body">Notes keep a one-step "previous version" snapshot. If an autosave lands right after an accidental paste-over wipes a note, a "Restore previous" button appears in the editor so you can get the old content back.</div>
+        </div>
+        <div class="info-item">
           <div class="info-item-title">Send to Discord DMs</div>
           <div class="info-item-body">Click "Send to DMs" in the editor to send the current note to your own Discord DMs, formatted in markdown. Notes longer than ~1900 characters are split into multiple messages automatically. Requires the bot to be configured.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Calendar</div>
-          <div class="info-item-body">Switch to the Calendar tab in the sidebar to see a month or week view of your notes and reminders. Days with due notes show coloured pills (matching the character's colour), and reminder days show an amber badge. Click any day to see its events in the sidebar panel and jump to the linked note. You can also create a note directly from the calendar with the due date pre-filled. <b>Note:</b> Mobile functionality is limited at this time.</div>
+          <div class="info-item-body">Switch to the Calendar tab in the sidebar to see a month or week view of your notes, reminders, and bills. Days with due items show coloured pills, and reminder days show an amber badge. Click any day to see its events in the sidebar panel and jump to the linked note or bill. You can also create a note directly from the calendar with the due date pre-filled. Works on mobile too, with a back button to return to the day list.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Due dates</div>
@@ -1324,6 +1328,22 @@ kbd {
         <div class="info-item">
           <div class="info-item-title">Timezone</div>
           <div class="info-item-body">Set your timezone in the settings menu (⚙️) so reminder times display correctly in your local time. Each user sets their own timezone independently.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Bills</div>
+          <div class="info-item-body">If you've been granted access, the Bills tab tracks recurring or one-time bills: amount, currency, due date, frequency, category, and a Low/Medium/High/Urgent priority (which also sets the bill's colour). Mark a bill paid to log it and automatically roll a recurring bill to its next due date. The dashboard shows overdue/upcoming/paid counts, a 12-month forecast, a "How is this calculated?" breakdown, spend by category, and recent payment history. Bills also appear on the Calendar and can send Discord DM reminders ahead of the due date. Each account's bills are completely private — nobody else can see them.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Manage access (admin only)</div>
+          <div class="info-item-body">From the settings menu, add or remove the Discord accounts allowed to log in, and grant or revoke individual accounts their own private Bills tab — separate from your own bills.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Export your data</div>
+          <div class="info-item-body">From the settings menu, download all your notes, characters, reminders, and bills as a single JSON file for your own backup.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Install as an app</div>
+          <div class="info-item-body">Ledger can be added to your phone's home screen (Add to Home Screen on Android or iOS Safari) and opens like a native app.</div>
         </div>
       </div>
       <div class="info-section">
