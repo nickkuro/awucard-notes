@@ -639,7 +639,9 @@ app.delete("/api/admin/local-accounts/:id", requireAdmin, async (req, res) => {
 app.post("/api/admin/bills-access", requireAdmin, async (req, res) => {
   const { id } = req.body || {};
   const trimmed = String(id || "").trim();
-  if (!/^\d{15,20}$/.test(trimmed)) {
+  const isDiscordId = /^\d{15,20}$/.test(trimmed);
+  const isLocalAccountId = trimmed.startsWith("local_");
+  if (!isDiscordId && !isLocalAccountId) {
     return res.status(400).json({ error: "Enter a valid Discord user ID (numbers only)." });
   }
   const entry = await store.grantBillsAccess(trimmed);
