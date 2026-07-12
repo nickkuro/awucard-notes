@@ -408,6 +408,11 @@ app.delete("/api/notes/:id", requireAuth, async (req, res) => {
   if (!ok) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
 });
+app.post("/api/notes/:id/restore-previous", requireAuth, async (req, res) => {
+  const note = await store.restorePreviousVersion(req.session.user.id, req.params.id);
+  if (!note) return res.status(404).json({ error: "No previous version to restore" });
+  res.json(note);
+});
 app.delete("/api/notes", requireAuth, async (req, res) => {
   await store.clearNotes(req.session.user.id, req.query.characterId || "__all__");
   res.json({ ok: true });

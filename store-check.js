@@ -67,6 +67,31 @@ async function checkBillOwnershipAndDueDateRollover() {
   await store.deleteBill(ownerA, bill.id);
 }
 
+async function checkNotePreviousVersionRestore() {
+  const ownerA = `store-check-restore-a-${Date.now()}`;
+  const ownerB = `store-check-restore-b-${Date.now()}`;
+
+  const note = await store.createNote(ownerA, { title: 'v1', body: 'body v1' });
+  const fresh = await store.getNote(ownerA, note.id);
+  assert.equal(fresh.prevBody, null, 'a brand new note should have no previous version yet');
+
+  await store.updateNote(ownerA, note.id, { title: 'v2', body: 'body v2' });
+  const afterAccidentalPaste = await store.updateNote(ownerA, note.id, { title: 'v3', body: 'PASTED OVER' });
+  assert.equal(afterAccidentalPaste.prevBody, 'body v2', 'previous version should be the content right before the last save');
+  assert.equal(afterAccidentalPaste.prevTitle, 'v2');
+
+  assert.equal(await store.restorePreviousVersion(ownerB, note.id), null, 'another owner must not be able to restore this note');
+
+  const restored = await store.restorePreviousVersion(ownerA, note.id);
+  assert.equal(restored.body, 'body v2', 'restore should bring back the version saved before the last one');
+  assert.equal(restored.prevBody, 'PASTED OVER', 'restore itself should be undoable by swapping the pasted-over content into prev');
+
+  const restoredAgain = await store.restorePreviousVersion(ownerA, note.id);
+  assert.equal(restoredAgain.body, 'PASTED OVER', 'restoring twice should bring back the pasted-over content (undo the undo)');
+
+  await store.deleteNote(ownerA, note.id);
+}
+
 async function checkAllowlistAndBillsAccess() {
   const id = `store-check-guest-${Date.now()}`;
 
@@ -86,6 +111,7 @@ async function checkAllowlistAndBillsAccess() {
 async function runStoreCheck() {
   await checkNotesAndCharacters();
   await checkReminderOwnership();
+  await checkNotePreviousVersionRestore();
   await checkBillOwnershipAndDueDateRollover();
   await checkAllowlistAndBillsAccess();
   console.log('Store check passed.');

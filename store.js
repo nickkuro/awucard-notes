@@ -38,7 +38,10 @@ CREATE TABLE IF NOT EXISTS notes (
   sticky INTEGER,
   dueDate TEXT,
   createdAt INTEGER,
-  updatedAt INTEGER
+  updatedAt INTEGER,
+  prevTitle TEXT,
+  prevBody TEXT,
+  prevSavedAt INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_notes_owner ON notes(ownerId);
 
@@ -94,6 +97,23 @@ function applyPragmas(handle) {
   handle.exec("PRAGMA journal_mode = WAL");
   handle.exec("PRAGMA foreign_keys = OFF");
   handle.exec("PRAGMA synchronous = NORMAL");
+}
+
+// Adds columns introduced after a database was first created. SCHEMA_SQL's
+// CREATE TABLE IF NOT EXISTS only applies to brand-new databases, so any
+// database that already exists needs its own additive, idempotent path here.
+// Never drops or rewrites existing columns/rows.
+function ensureColumn(handle, table, column, type) {
+  const cols = handle.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    handle.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
+function ensureSchemaUpToDate(handle) {
+  ensureColumn(handle, "notes", "prevTitle", "TEXT");
+  ensureColumn(handle, "notes", "prevBody", "TEXT");
+  ensureColumn(handle, "notes", "prevSavedAt", "INTEGER");
 }
 
 // Migrates a legacy data/db.json into the (already schema-created) handle.
@@ -236,6 +256,7 @@ function initDb() {
     // Already fully initialized/migrated in a previous run.
     db = new DatabaseSync(SQLITE_FILE);
     applyPragmas(db);
+    ensureSchemaUpToDate(db);
     return;
   }
 
@@ -292,7 +313,8 @@ function rowToNote(row) {
     title: row.title, body: row.body,
     tags: row.tags ? JSON.parse(row.tags) : [],
     sticky: !!row.sticky, dueDate: row.dueDate,
-    createdAt: row.createdAt, updatedAt: row.updatedAt
+    createdAt: row.createdAt, updatedAt: row.updatedAt,
+    prevTitle: row.prevTitle, prevBody: row.prevBody, prevSavedAt: row.prevSavedAt
   };
 }
 
@@ -450,20 +472,54 @@ async function updateNote(ownerId, id, partial) {
   const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   const note = rowToNote(row);
+  const contentChanged =
+    (typeof partial.title === "string" && partial.title !== row.title) ||
+    (typeof partial.body === "string" && partial.body !== row.body);
   if (typeof partial.title === "string") note.title = partial.title;
   if (typeof partial.body === "string") note.body = partial.body;
   if (Array.isArray(partial.tags)) note.tags = partial.tags;
   if (typeof partial.sticky === "boolean") note.sticky = partial.sticky;
   if ("dueDate" in partial) note.dueDate = partial.dueDate || null;
   note.updatedAt = Date.now();
+  // Keep a single-level "previous saved version" snapshot so an accidental
+  // paste-over that gets autosaved isn't unrecoverable.
+  if (contentChanged) {
+    note.prevTitle = row.title;
+    note.prevBody = row.body;
+    note.prevSavedAt = note.updatedAt;
+  }
   db.prepare(
-    `UPDATE notes SET title = :title, body = :body, tags = :tags, sticky = :sticky, dueDate = :dueDate, updatedAt = :updatedAt
+    `UPDATE notes SET title = :title, body = :body, tags = :tags, sticky = :sticky, dueDate = :dueDate, updatedAt = :updatedAt,
+     prevTitle = :prevTitle, prevBody = :prevBody, prevSavedAt = :prevSavedAt
      WHERE id = :id`
   ).run({
     id, title: note.title, body: note.body, tags: JSON.stringify(note.tags),
-    sticky: note.sticky ? 1 : 0, dueDate: note.dueDate, updatedAt: note.updatedAt
+    sticky: note.sticky ? 1 : 0, dueDate: note.dueDate, updatedAt: note.updatedAt,
+    prevTitle: note.prevTitle ?? null, prevBody: note.prevBody ?? null, prevSavedAt: note.prevSavedAt ?? null
   });
   return note;
+}
+
+async function restorePreviousVersion(ownerId, id) {
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  if (!row || row.ownerId !== ownerId) return null;
+  if (row.prevBody == null && row.prevTitle == null) return null;
+  const now = Date.now();
+  const restored = {
+    title: row.prevTitle ?? "",
+    body: row.prevBody ?? "",
+    // The restore itself becomes undoable by swapping the current content in as "previous".
+    prevTitle: row.title,
+    prevBody: row.body,
+    prevSavedAt: now,
+    updatedAt: now
+  };
+  db.prepare(
+    `UPDATE notes SET title = :title, body = :body, updatedAt = :updatedAt,
+     prevTitle = :prevTitle, prevBody = :prevBody, prevSavedAt = :prevSavedAt
+     WHERE id = :id`
+  ).run({ id, ...restored });
+  return rowToNote({ ...row, ...restored });
 }
 
 async function deleteNote(ownerId, id) {
@@ -739,7 +795,7 @@ async function revokeBillsAccess(id) {
 module.exports = {
   upsertUser, getUser, updateUserTimezone, updateUserIncome,
   listCharacters, createCharacter, updateCharacter, deleteCharacter,
-  listNotes, getNote, createNote, updateNote, deleteNote, clearNotes,
+  listNotes, getNote, createNote, updateNote, deleteNote, clearNotes, restorePreviousVersion,
   listReminders, listRemindersForNote, getDueReminders, createReminder, rescheduleReminder, deleteReminder,
   listBills, getBill, createBill, updateBill, markBillPaid, markBillUnpaid, deleteBill,
   getAllBills, markBillReminderSent,
