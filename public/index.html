@@ -3408,6 +3408,7 @@ function renderBillDashboard() {
         '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+totalsLine+'</div><div class="bill-dash-stat-label">Total due</div></div>'+
         '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+yearlyLine+'</div><div class="bill-dash-stat-label">Next 12 months</div></div>'+
       '</div>'+
+      breakdownHtml +
       section("Overdue", overdue, "Nothing overdue.") +
       section("Due soon", upcoming.slice(0,5), "Nothing else due.") +
       '<div class="bill-dash-section"><div class="bill-dash-heading">Monthly forecast</div>'+
@@ -3423,8 +3424,7 @@ function renderBillDashboard() {
         '<select id="incomeCurrencyInput">'+incomeCurrencyOptions+'</select>'+
       '</div>'+
       '<div class="bill-dash-net" id="incomeNetLine"></div>'+
-    '</div>'+
-    breakdownHtml;
+    '</div>';
 
   el.querySelectorAll(".bill-dash-item").forEach(function(item){
     item.addEventListener("click", function(){
