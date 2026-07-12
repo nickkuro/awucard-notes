@@ -995,6 +995,7 @@ kbd {
         <div class="settings-menu hidden" id="settingsMenu">
           <button id="clearNotesBtn" class="danger">Clear all notes</button>
           <button id="timezoneBtn">Set timezone</button>
+          <button id="exportDataBtn">Export my data</button>
           <button id="manageAccessBtn" class="hidden">Manage access</button>
           <button id="logoutBtn">Log out</button>
         </div>
@@ -1346,6 +1347,14 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v2.10</div>
+          <div class="cl-items">
+            <div class="cl-item new">Bills dashboard now shows a "Spend by category" breakdown over the next 12 months, using the category you already set on each bill.</div>
+            <div class="cl-item new">Added a "Paid in recent months" section showing what you've actually paid over the last 6 months, based on real payment history.</div>
+            <div class="cl-item new">Added an "Export my data" option in Settings — downloads all your notes, characters, reminders, and bills as a JSON file.</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v2.9.1</div>
           <div class="cl-items">
@@ -2372,6 +2381,16 @@ document.getElementById("timezoneOverlay").addEventListener("click",function(e){
   if(e.target===this) document.getElementById("timezoneOverlay").classList.add("hidden");
 });
 
+document.getElementById("exportDataBtn").addEventListener("click",function(){
+  document.getElementById("settingsMenu").classList.add("hidden");
+  var a=document.createElement("a");
+  a.href="/api/me/export";
+  a.download="ledger-export.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
 // ---------- Manage access (admin only) ----------
 function accessItemRow(e) {
   var removable = e.source === "dynamic";
@@ -3293,6 +3312,66 @@ function forecastTotalsLine(totalsObj){
   return keys.map(function(cur){ return cur+" $"+totalsObj[cur].toFixed(2); }).join(" · ");
 }
 
+// Same forward walk as buildBillForecast, grouped by category instead of
+// month -- shows where the next `monthsAhead` months of spend will go.
+function buildCategoryBreakdown(bills, monthsAhead) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var monthKeys = [];
+  for(var i=0;i<monthsAhead;i++){
+    var d = new Date(today.getFullYear(), today.getMonth()+i, 1);
+    monthKeys.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));
+  }
+  var horizonEnd = monthKeys[monthKeys.length-1];
+  var totals = {};
+
+  bills.forEach(function(b){
+    if(!b.dueDate) return;
+    var cat = b.category || "Other";
+    if(!totals[cat]) totals[cat] = {};
+    if(b.frequency === "one-time"){
+      if(b.paid) return;
+      if(b.dueDate.slice(0,7) <= horizonEnd) totals[cat][b.currency] = (totals[cat][b.currency]||0) + Number(b.amount||0);
+      return;
+    }
+    var cursor = b.dueDate;
+    var guard = 0;
+    while(cursor && cursor.slice(0,7) <= horizonEnd && guard < 80){
+      guard++;
+      totals[cat][b.currency] = (totals[cat][b.currency]||0) + Number(b.amount||0);
+      cursor = advanceDueDateClient(cursor, b.frequency);
+    }
+  });
+
+  return Object.keys(totals).map(function(cat){ return { category: cat, totals: totals[cat] }; })
+    .sort(function(a,b){
+      var sumA = Object.keys(a.totals).reduce(function(s,c){return s+a.totals[c];},0);
+      var sumB = Object.keys(b.totals).reduce(function(s,c){return s+b.totals[c];},0);
+      return sumB - sumA;
+    });
+}
+
+// Looks backward using each bill's real paidDates history -- not a
+// projection, this is what was actually paid.
+function buildPaymentHistory(bills, monthsBack) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var monthKeys = [];
+  for(var i=monthsBack-1;i>=0;i--){
+    var d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+    monthKeys.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));
+  }
+  var totals = {};
+  monthKeys.forEach(function(mk){ totals[mk] = {}; });
+
+  bills.forEach(function(b){
+    (b.paidDates||[]).forEach(function(pd){
+      var mk = pd.slice(0,7);
+      if(totals[mk]) totals[mk][b.currency] = (totals[mk][b.currency]||0) + Number(b.amount||0);
+    });
+  });
+
+  return monthKeys.map(function(mk){ return { month: mk, totals: totals[mk] }; });
+}
+
 function renderIncomeNetLine() {
   var netEl = document.getElementById("incomeNetLine");
   if(!netEl) return;
@@ -3366,6 +3445,21 @@ function renderBillDashboard() {
     '</div>';
   }
 
+  function categoryRow(entry){
+    return '<div class="bill-dash-forecast-row">'+
+      '<span class="bill-dash-forecast-month">'+esc(entry.category)+'</span>'+
+      '<span class="bill-dash-forecast-amount">'+forecastTotalsLine(entry.totals)+'</span>'+
+    '</div>';
+  }
+
+  function historyRow(f){
+    var isThisMonth = f.month === thisMonthKey;
+    return '<div class="bill-dash-forecast-row'+(isThisMonth?" current":"")+'">'+
+      '<span class="bill-dash-forecast-month">'+forecastMonthLabel(f.month)+(isThisMonth?' <span class="bill-dash-forecast-tag">This month</span>':'')+'</span>'+
+      '<span class="bill-dash-forecast-amount">'+forecastTotalsLine(f.totals)+'</span>'+
+    '</div>';
+  }
+
   function breakdownRow(entry){
     var amt = Number(entry.bill.amount);
     var calc = entry.count > 1
@@ -3402,6 +3496,9 @@ function renderBillDashboard() {
       '</div>'
     : "";
 
+  var categoryBreakdown = buildCategoryBreakdown(state.bills, 12);
+  var paymentHistory = buildPaymentHistory(state.bills, 6);
+
   var incomeAmount = state.user && state.user.incomeEstimate;
   var incomeCurrency = (state.user && state.user.incomeCurrency) || "USD";
   var incomeCurrencyOptions = BILL_CURRENCIES.map(function(c){
@@ -3421,6 +3518,12 @@ function renderBillDashboard() {
       section("Due soon", upcoming.slice(0,5), "Nothing else due.") +
       '<div class="bill-dash-section"><div class="bill-dash-heading">Monthly forecast</div>'+
         forecast.map(forecastRow).join("")+
+      '</div>'+
+      '<div class="bill-dash-section"><div class="bill-dash-heading">Spend by category (next 12 months)</div>'+
+        (categoryBreakdown.length ? categoryBreakdown.map(categoryRow).join("") : '<div class="bill-dash-empty">No categorized bills yet.</div>')+
+      '</div>'+
+      '<div class="bill-dash-section"><div class="bill-dash-heading">Paid in recent months</div>'+
+        paymentHistory.map(historyRow).join("")+
       '</div>'
     : '<div class="bill-dashboard-empty">No bills yet. Add one to see an overview here.</div>';
 

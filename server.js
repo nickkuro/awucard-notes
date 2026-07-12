@@ -356,6 +356,21 @@ app.put("/api/me/income", requireAuth, async (req, res) => {
   res.json(user);
 });
 
+app.get("/api/me/export", requireAuth, (req, res) => {
+  const id = req.session.user.id;
+  const canAccessBills = id === ADMIN_DISCORD_ID || store.hasBillsAccess(id);
+  const data = {
+    exportedAt: new Date().toISOString(),
+    user: { id, username: req.session.user.username },
+    characters: store.listCharacters(id),
+    notes: store.listNotes(id, "__all__"),
+    reminders: store.listReminders(id),
+    bills: canAccessBills ? store.listBills(id) : []
+  };
+  res.setHeader("Content-Disposition", `attachment; filename="ledger-export-${id}.json"`);
+  res.json(data);
+});
+
 app.use("/api", apiLimiter);
 
 // ---------- Characters ----------
