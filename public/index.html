@@ -786,11 +786,12 @@ kbd {
 .bill-dash-net.positive { color: var(--green); }
 .bill-dash-net.negative { color: var(--danger); }
 .bill-dash-toggle {
-  display: flex; align-items: center; gap: 6px; width: 100%;
-  background: none; color: var(--ink-mid); font-size: 12px; font-family: 'IBM Plex Mono', monospace;
-  letter-spacing: 0.04em; padding: 4px 0;
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--ink-mid); font-size: 12px; font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em; padding: 9px 12px;
 }
-.bill-dash-toggle:hover { color: var(--ink); }
+.bill-dash-toggle:hover { color: var(--ink); border-color: var(--ink-dim); }
 .bill-dash-toggle-icon { transition: transform 0.15s ease; flex-shrink: 0; }
 .bill-dash-toggle.open .bill-dash-toggle-icon { transform: rotate(180deg); }
 .bill-dash-breakdown { margin-top: 12px; }
@@ -1345,6 +1346,13 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v2.9.1</div>
+          <div class="cl-items">
+            <div class="cl-item fix">Renamed "Total due" to "Outstanding bills" — it's a snapshot of unpaid bill amounts, not a monthly total, and was easy to mix up with the new breakdown's forecasted figures.</div>
+            <div class="cl-item fix">Gave the "How is this calculated?" toggle an actual button look so it doesn't read as an empty box.</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v2.9</div>
           <div class="cl-items">
@@ -3405,7 +3413,7 @@ function renderBillDashboard() {
         '<div class="bill-dash-stat overdue"><div class="bill-dash-stat-value">'+overdue.length+'</div><div class="bill-dash-stat-label">Overdue</div></div>'+
         '<div class="bill-dash-stat upcoming"><div class="bill-dash-stat-value">'+upcoming.length+'</div><div class="bill-dash-stat-label">Upcoming</div></div>'+
         '<div class="bill-dash-stat paid"><div class="bill-dash-stat-value">'+paid.length+'</div><div class="bill-dash-stat-label">Paid</div></div>'+
-        '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+totalsLine+'</div><div class="bill-dash-stat-label">Total due</div></div>'+
+        '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+totalsLine+'</div><div class="bill-dash-stat-label">Outstanding bills</div></div>'+
         '<div class="bill-dash-stat"><div class="bill-dash-stat-value" style="font-size:15px;">'+yearlyLine+'</div><div class="bill-dash-stat-label">Next 12 months</div></div>'+
       '</div>'+
       breakdownHtml +
