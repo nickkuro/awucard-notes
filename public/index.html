@@ -845,10 +845,16 @@ kbd {
 .bill-toggle-row { display: flex; align-items: center; gap: 10px; }
 .bill-toggle-row label { font-size: 13px; color: var(--ink-mid); cursor: pointer; font-family: inherit; text-transform: none; letter-spacing: 0; }
 .bill-toggle-row input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
-.bill-color-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.bill-color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.1s; }
-.bill-color-swatch:hover { transform: scale(1.15); }
-.bill-color-swatch.selected { border-color: var(--ink); }
+.bill-priority-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.bill-priority-btn {
+  padding: 7px 14px; border-radius: 100px; font-size: 12.5px; font-weight: 500;
+  border: 1px solid var(--border); color: var(--ink-mid); cursor: pointer; transition: all 0.1s;
+}
+.bill-priority-btn:hover { border-color: var(--priority-color); color: var(--ink); }
+.bill-priority-btn.selected {
+  border-color: var(--priority-color); color: var(--priority-color);
+  background: color-mix(in srgb, var(--priority-color) 12%, transparent);
+}
 .bill-history { margin-top: 22px; max-width: 620px; }
 .bill-history-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--ink-dim); text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
 .bill-history-empty { font-size: 13px; color: var(--ink-dim); font-style: italic; }
@@ -1354,6 +1360,12 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v2.13</div>
+          <div class="cl-items">
+            <div class="cl-item new">Replaced the free-pick bill color swatch with a Priority setting (Low/Medium/High/Urgent) — color is now derived from priority, and bills due on the same day now sort with higher priority first.</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v2.12</div>
           <div class="cl-items">
@@ -3171,7 +3183,10 @@ document.getElementById("calSideAddNote").addEventListener("click", function(){
 });
 
 // ===================== BILLS =====================
-var BILL_COLORS = ["#c9605a","#e8a33d","#4fa8a0","#7c8cc9","#9bb05a","#cf9bd6","#e07b54","#5fa8d4"];
+var BILL_PRIORITIES = ["low","medium","high","urgent"];
+var PRIORITY_LABELS = { low:"Low", medium:"Medium", high:"High", urgent:"Urgent" };
+var PRIORITY_COLORS = { low:"#4fa8a0", medium:"#7c8cc9", high:"#e8a33d", urgent:"#c9605a" };
+var PRIORITY_ORDER = { urgent:3, high:2, medium:1, low:0 };
 var BILL_CATEGORIES = ["Housing","Utilities","Entertainment","Insurance","Subscriptions","Food","Transport","Health","Other"];
 var BILL_FREQS = [
   {val:"one-time",label:"One-time"},{val:"weekly",label:"Weekly"},
@@ -3465,8 +3480,13 @@ function renderBillDashboard() {
       dueTotals[b.currency] = (dueTotals[b.currency]||0) + (Number(b.amount)||0);
     }
   });
-  overdue.sort(function(a,b){return (a.dueDate||"").localeCompare(b.dueDate||"");});
-  upcoming.sort(function(a,b){return (a.dueDate||"").localeCompare(b.dueDate||"");});
+  function byDueDateThenPriority(a,b){
+    var cmp = (a.dueDate||"").localeCompare(b.dueDate||"");
+    if(cmp!==0) return cmp;
+    return (PRIORITY_ORDER[b.priority]||1) - (PRIORITY_ORDER[a.priority]||1);
+  }
+  overdue.sort(byDueDateThenPriority);
+  upcoming.sort(byDueDateThenPriority);
 
   var totalsLine = Object.keys(dueTotals).map(function(cur){
     return cur+" $"+dueTotals[cur].toFixed(2);
@@ -3636,8 +3656,8 @@ function renderBillEditor() {
   var status = billStatus(bill);
   var statusLabel = status==="paid"?"✅ Paid":status==="overdue"?"⚠️ Overdue":"Upcoming";
 
-  var colorSwatches = BILL_COLORS.map(function(c){
-    return '<button class="bill-color-swatch'+(bill.color===c?" selected":"")+'" data-color="'+c+'" style="background:'+c+'"></button>';
+  var priorityBtns = BILL_PRIORITIES.map(function(p){
+    return '<button class="bill-priority-btn'+((bill.priority||"medium")===p?" selected":"")+'" data-priority="'+p+'" style="--priority-color:'+PRIORITY_COLORS[p]+'">'+PRIORITY_LABELS[p]+'</button>';
   }).join("");
   var freqOptions = BILL_FREQS.map(function(f){
     return '<option value="'+f.val+'"'+(bill.frequency===f.val?" selected":"")+'>'+f.label+'</option>';
@@ -3698,8 +3718,8 @@ function renderBillEditor() {
             '<input type="checkbox" id="billAutoPay"'+(bill.autoPay?" checked":"")+' />'+
             '<label for="billAutoPay">This bill is paid automatically</label>'+
           '</div></div>'+
-        '<div class="bill-field full"><label>Color</label>'+
-          '<div class="bill-color-row" id="billColorRow">'+colorSwatches+'</div></div>'+
+        '<div class="bill-field full"><label>Priority</label>'+
+          '<div class="bill-priority-row" id="billPriorityRow">'+priorityBtns+'</div></div>'+
         '<div class="bill-field full"><label>Notes</label>'+
           '<textarea id="billNotes" placeholder="Any extra details…">'+esc(bill.notes||"")+'</textarea></div>'+
       '</div>'+
@@ -3721,7 +3741,7 @@ function renderBillEditor() {
       reminderDays: remVal!==""?parseInt(remVal,10):null,
       autoPay:      document.getElementById("billAutoPay").checked,
       notes:        document.getElementById("billNotes").value,
-      color:        bill.color
+      priority:     bill.priority
     })}).then(function(updated){
       var idx=state.bills.findIndex(function(b){return b.id===updated.id;});
       if(idx>-1){state.bills[idx]=updated; bill=updated;}
@@ -3736,12 +3756,13 @@ function renderBillEditor() {
   });
   document.getElementById("billAutoPay").addEventListener("change",saveBill);
 
-  document.getElementById("billColorRow").querySelectorAll(".bill-color-swatch").forEach(function(sw){
-    sw.addEventListener("click",function(){
-      bill.color=sw.getAttribute("data-color");
+  document.getElementById("billPriorityRow").querySelectorAll(".bill-priority-btn").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      bill.priority=btn.getAttribute("data-priority");
+      bill.color=PRIORITY_COLORS[bill.priority];
       saveBill();
-      document.querySelectorAll(".bill-color-swatch").forEach(function(s){s.classList.remove("selected");});
-      sw.classList.add("selected");
+      document.querySelectorAll(".bill-priority-btn").forEach(function(b){b.classList.remove("selected");});
+      btn.classList.add("selected");
     });
   });
 
@@ -3778,7 +3799,7 @@ function renderBillEditor() {
 }
 
 document.getElementById("addBillBtn").addEventListener("click",function(){
-  api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:"USD",color:"#c9605a"})})
+  api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:"USD"})})
     .then(function(bill){
       state.bills.unshift(bill);
       state.selectedBillId=bill.id;

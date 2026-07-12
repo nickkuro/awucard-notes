@@ -8,6 +8,10 @@ const SQLITE_FILE = path.join(DATA_DIR, "ledger.sqlite3");
 const BUILDING_FILE = path.join(DATA_DIR, "ledger.sqlite3.building");
 const LEGACY_JSON_FILE = path.join(DATA_DIR, "db.json");
 
+const BILL_PRIORITIES = ["low", "medium", "high", "urgent"];
+const PRIORITY_COLORS = { low: "#4fa8a0", medium: "#7c8cc9", high: "#e8a33d", urgent: "#c9605a" };
+const PRIORITY_ORDER = { urgent: 3, high: 2, medium: 1, low: 0 };
+
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY NOT NULL,
@@ -75,7 +79,8 @@ CREATE TABLE IF NOT EXISTS bills (
   paid INTEGER,
   paidDates TEXT,
   lastReminderSent TEXT,
-  createdAt INTEGER
+  createdAt INTEGER,
+  priority TEXT DEFAULT 'medium'
 );
 CREATE INDEX IF NOT EXISTS idx_bills_owner ON bills(ownerId);
 
@@ -114,6 +119,10 @@ function ensureSchemaUpToDate(handle) {
   ensureColumn(handle, "notes", "prevTitle", "TEXT");
   ensureColumn(handle, "notes", "prevBody", "TEXT");
   ensureColumn(handle, "notes", "prevSavedAt", "INTEGER");
+  // Existing bills keep whatever color they already had -- only the
+  // priority is backfilled (defaults every existing row to 'medium').
+  // Color only gets recomputed from priority the next time it's changed.
+  ensureColumn(handle, "bills", "priority", "TEXT DEFAULT 'medium'");
 }
 
 // Migrates a legacy data/db.json into the (already schema-created) handle.
@@ -334,7 +343,8 @@ function rowToBill(row) {
     autoPay: !!row.autoPay, url: row.url, color: row.color, notes: row.notes,
     reminderDays: row.reminderDays, paid: !!row.paid,
     paidDates: row.paidDates ? JSON.parse(row.paidDates) : [],
-    lastReminderSent: row.lastReminderSent, createdAt: row.createdAt
+    lastReminderSent: row.lastReminderSent, createdAt: row.createdAt,
+    priority: row.priority || "medium"
   };
 }
 
@@ -630,7 +640,11 @@ function listBills(ownerId) {
   return db.prepare("SELECT * FROM bills WHERE ownerId = :ownerId").all({ ownerId })
     .map(rowToBill)
     .sort((a, b) => {
-      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+      if (a.dueDate && b.dueDate) {
+        const cmp = a.dueDate.localeCompare(b.dueDate);
+        if (cmp !== 0) return cmp;
+        return (PRIORITY_ORDER[b.priority] ?? 1) - (PRIORITY_ORDER[a.priority] ?? 1);
+      }
       if (a.dueDate) return -1;
       if (b.dueDate) return 1;
       return (a.name || "").localeCompare(b.name || "");
@@ -644,6 +658,7 @@ function getBill(ownerId, id) {
 }
 
 async function createBill(ownerId, partial) {
+  const priority = BILL_PRIORITIES.includes(partial.priority) ? partial.priority : "medium";
   const bill = {
     id: uid(), ownerId,
     name:         partial.name || "New bill",
@@ -654,23 +669,24 @@ async function createBill(ownerId, partial) {
     category:     partial.category || "Other",
     autoPay:      Boolean(partial.autoPay),
     url:          partial.url || "",
-    color:        partial.color || "#c9605a",
+    color:        PRIORITY_COLORS[priority],
     notes:        partial.notes || "",
     reminderDays: partial.reminderDays != null ? Number(partial.reminderDays) : null,
     paid:         false,
     paidDates:    [],
     lastReminderSent: null,
-    createdAt:    Date.now()
+    createdAt:    Date.now(),
+    priority
   };
   db.prepare(
-    `INSERT INTO bills (id, ownerId, name, amount, currency, dueDate, frequency, category, autoPay, url, color, notes, reminderDays, paid, paidDates, lastReminderSent, createdAt)
-     VALUES (:id, :ownerId, :name, :amount, :currency, :dueDate, :frequency, :category, :autoPay, :url, :color, :notes, :reminderDays, :paid, :paidDates, :lastReminderSent, :createdAt)`
+    `INSERT INTO bills (id, ownerId, name, amount, currency, dueDate, frequency, category, autoPay, url, color, notes, reminderDays, paid, paidDates, lastReminderSent, createdAt, priority)
+     VALUES (:id, :ownerId, :name, :amount, :currency, :dueDate, :frequency, :category, :autoPay, :url, :color, :notes, :reminderDays, :paid, :paidDates, :lastReminderSent, :createdAt, :priority)`
   ).run({
     id: bill.id, ownerId: bill.ownerId, name: bill.name, amount: bill.amount, currency: bill.currency,
     dueDate: bill.dueDate, frequency: bill.frequency, category: bill.category, autoPay: bill.autoPay ? 1 : 0,
     url: bill.url, color: bill.color, notes: bill.notes, reminderDays: bill.reminderDays,
     paid: bill.paid ? 1 : 0, paidDates: JSON.stringify(bill.paidDates), lastReminderSent: bill.lastReminderSent,
-    createdAt: bill.createdAt
+    createdAt: bill.createdAt, priority: bill.priority
   });
   return bill;
 }
@@ -681,17 +697,24 @@ async function updateBill(ownerId, id, partial) {
   const bill = rowToBill(row);
   // "paid" is intentionally excluded -- it's only mutated via markBillPaid/markBillUnpaid,
   // which also keep paidDates and dueDate advancement in sync.
-  const fields = ["name","amount","currency","dueDate","frequency","category","autoPay","url","color","notes","reminderDays"];
+  const fields = ["name","amount","currency","dueDate","frequency","category","autoPay","url","notes","reminderDays"];
   fields.forEach(f => { if (f in partial) bill[f] = partial[f]; });
   if (typeof bill.amount === "string") bill.amount = parseFloat(bill.amount) || 0;
+  // Color is derived from priority, not independently settable -- picking a
+  // priority level recolors the bill everywhere it's shown.
+  if (BILL_PRIORITIES.includes(partial.priority)) {
+    bill.priority = partial.priority;
+    bill.color = PRIORITY_COLORS[bill.priority];
+  }
   db.prepare(
     `UPDATE bills SET name=:name, amount=:amount, currency=:currency, dueDate=:dueDate, frequency=:frequency,
-     category=:category, autoPay=:autoPay, url=:url, color=:color, notes=:notes, reminderDays=:reminderDays
+     category=:category, autoPay=:autoPay, url=:url, color=:color, notes=:notes, reminderDays=:reminderDays,
+     priority=:priority
      WHERE id=:id`
   ).run({
     id, name: bill.name, amount: bill.amount, currency: bill.currency, dueDate: bill.dueDate,
     frequency: bill.frequency, category: bill.category, autoPay: bill.autoPay ? 1 : 0, url: bill.url,
-    color: bill.color, notes: bill.notes, reminderDays: bill.reminderDays
+    color: bill.color, notes: bill.notes, reminderDays: bill.reminderDays, priority: bill.priority
   });
   return bill;
 }

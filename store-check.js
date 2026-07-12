@@ -67,6 +67,31 @@ async function checkBillOwnershipAndDueDateRollover() {
   await store.deleteBill(ownerA, bill.id);
 }
 
+async function checkBillPriorityColorAndSorting() {
+  const ownerId = `store-check-priority-${Date.now()}`;
+
+  const fresh = await store.createBill(ownerId, { name: 'Water', amount: 40, currency: 'USD', dueDate: '2026-08-01', frequency: 'monthly' });
+  assert.equal(fresh.priority, 'medium', 'a bill created with no priority should default to medium');
+
+  const urgent = await store.updateBill(ownerId, fresh.id, { priority: 'urgent' });
+  assert.equal(urgent.priority, 'urgent');
+  assert.equal(urgent.color, '#c9605a', 'color should be recomputed to match the chosen priority');
+
+  const rejected = await store.updateBill(ownerId, fresh.id, { priority: 'not-a-real-priority' });
+  assert.equal(rejected.priority, 'urgent', 'an invalid priority value should be ignored, keeping the last valid one');
+
+  // Two bills sharing the same due date should sort by priority (higher first) as a tiebreak.
+  const sameDayLow = await store.createBill(ownerId, { name: 'Low prio same day', amount: 5, dueDate: '2026-09-01', frequency: 'monthly', priority: 'low' });
+  const sameDayUrgent = await store.createBill(ownerId, { name: 'Urgent same day', amount: 5, dueDate: '2026-09-01', frequency: 'monthly', priority: 'urgent' });
+  const listed = await store.listBills(ownerId);
+  const sameDayIds = listed.filter((b) => b.dueDate === '2026-09-01').map((b) => b.id);
+  assert.deepEqual(sameDayIds, [sameDayUrgent.id, sameDayLow.id], 'urgent bill should sort before a low-priority bill sharing the same due date');
+
+  await store.deleteBill(ownerId, fresh.id);
+  await store.deleteBill(ownerId, sameDayLow.id);
+  await store.deleteBill(ownerId, sameDayUrgent.id);
+}
+
 async function checkNotePreviousVersionRestore() {
   const ownerA = `store-check-restore-a-${Date.now()}`;
   const ownerB = `store-check-restore-b-${Date.now()}`;
@@ -113,6 +138,7 @@ async function runStoreCheck() {
   await checkReminderOwnership();
   await checkNotePreviousVersionRestore();
   await checkBillOwnershipAndDueDateRollover();
+  await checkBillPriorityColorAndSorting();
   await checkAllowlistAndBillsAccess();
   console.log('Store check passed.');
 }
