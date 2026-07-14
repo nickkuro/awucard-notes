@@ -9,9 +9,11 @@
         color-scheme: dark;
         --bg: #10131a;
         --panel: #171b24;
+        --panel-hi: #1d2230;
         --text: #f5f7fb;
         --muted: #9aa3b2;
         --accent: #f0b84b;
+        --border: rgba(255,255,255,0.08);
       }
       * { box-sizing: border-box; }
       body {
@@ -28,7 +30,7 @@
       }
       .card {
         background: var(--panel);
-        border: 1px solid rgba(255,255,255,0.08);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 24px;
         box-shadow: 0 12px 36px rgba(0,0,0,0.25);
@@ -52,6 +54,41 @@
       .back:hover {
         background: rgba(232,163,61,0.18);
       }
+      .intro { margin-bottom: 20px; }
+      .summary {
+        background: var(--panel-hi);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 28px;
+      }
+      .summary-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 8px;
+      }
+      .summary ul { margin: 0; padding-left: 20px; }
+      .summary li { margin-bottom: 4px; }
+      .summary li:last-child { margin-bottom: 0; }
+      section { margin-bottom: 26px; }
+      section:last-of-type { margin-bottom: 0; }
+      section h2 {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+        margin: 0 0 12px;
+      }
+      section ul { margin: 0; padding-left: 20px; }
+      section li { margin-bottom: 8px; }
+      section li:last-child { margin-bottom: 0; }
+      .closing { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
     </style>
   </head>
   <body>
@@ -59,24 +96,68 @@
       <a class="back" href="/">← Back to Ledger</a>
       <div class="card">
         <h1>Privacy Policy</h1>
-        <p>Ledger stores the minimum information needed to run your account and keep your notes available.</p>
-        <ul>
-          <li>When you sign in with Discord, the app receives your Discord user ID, username, and avatar URL.</li>
-          <li>If you were invited with a local (non-Discord) account instead, we store your chosen username and a salted hash of your password — never the password itself in readable form. Discord-only features like Send to DMs and Discord-delivered reminders aren't available to local accounts, since there's no Discord identity to send to.</li>
-          <li>We store your characters, notes, tags, timestamps, and reminder data so the app can work for your account.</li>
-          <li>If you've been given access to Bills, we also store the bill details you enter (name, amount, due date, and similar) — this is private to your account and not shared with anyone else, including other Bills users.</li>
-          <li>We also store a session cookie so you can stay logged in between visits.</li>
-          <li>In your browser, we only keep a theme preference (dark/light) in localStorage; nothing else is stored there.</li>
-          <li>We do not use analytics or ad trackers, and we do not sell your data.</li>
-          <li>We do not share your data with Discord beyond the initial login handshake.</li>
-          <li>If Discord bot features are enabled, reminder and DM actions may send content to your Discord account as part of the feature.</li>
-          <li>If you opt into the Discord digest, its content (overdue/upcoming bills and reminders) is sent to you the same way as other DM features.</li>
-          <li>If you use the calendar feed feature, we generate a long random link tied to your account so calendar apps like Google or Apple Calendar can fetch your bill and note due dates without you logging in each time. Anyone with that link can see those due dates, so treat it like a password — you can regenerate it at any time from the settings menu to invalidate the old one.</li>
-          <li>We record the time you last logged in, for account administration (e.g. so an admin can see whether an invited local account has been used).</li>
-          <li>You can download a copy of everything stored under your account (notes, characters, reminders, and bills) at any time from the settings menu — no need to ask.</li>
-          <li>You can also permanently delete everything stored under your account (notes, characters, reminders, and bills) at any time from the settings menu, without needing to contact anyone.</li>
-        </ul>
-        <p>Removing your data through the settings menu doesn't remove your Discord account's login access — if you'd like that revoked too, or need help with anything the self-service options don't cover, contact <a href="https://discord.com/users/127494415521415169">Awucard</a>.</p>
+        <p class="intro">Ledger stores the minimum information needed to run your account and keep your notes available. Here's exactly what that means.</p>
+
+        <div class="summary">
+          <div class="summary-title">In short</div>
+          <ul>
+            <li>We store your login info, notes, characters, reminders, and (if you use it) Bills data — nothing more.</li>
+            <li>No analytics, no ad trackers, no selling your data, no sharing with Discord beyond logging you in.</li>
+            <li>You can export or permanently delete everything under your account yourself, anytime, from the settings menu.</li>
+          </ul>
+        </div>
+
+        <section>
+          <h2>Account &amp; login</h2>
+          <ul>
+            <li>When you sign in with Discord, the app receives your Discord user ID, username, and avatar URL.</li>
+            <li>If you were invited with a local (non-Discord) account instead, we store your chosen username and a salted hash of your password — never the password itself in readable form. Discord-only features like Send to DMs and Discord-delivered reminders aren't available to local accounts, since there's no Discord identity to send to.</li>
+            <li>We store a session cookie so you can stay logged in between visits.</li>
+            <li>We record the time you last logged in, for account administration (e.g. so an admin can see whether an invited local account has been used).</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Your content</h2>
+          <ul>
+            <li>We store your characters, notes, tags, timestamps, and reminder data so the app can work for your account.</li>
+            <li>If you've been given access to Bills, we also store the bill details you enter (name, amount, due date, and similar) — this is private to your account and not shared with anyone else, including other Bills users.</li>
+            <li>In your browser, we only keep a theme preference (dark/light) in localStorage; nothing else is stored there.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Discord features</h2>
+          <ul>
+            <li>We do not share your data with Discord beyond the initial login handshake.</li>
+            <li>If Discord bot features are enabled, reminder and DM actions may send content to your Discord account as part of the feature.</li>
+            <li>If you opt into the Discord digest, its content (overdue/upcoming bills and reminders) is sent to you the same way as other DM features.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Calendar feed</h2>
+          <ul>
+            <li>If you use the calendar feed feature, we generate a long random link tied to your account so calendar apps like Google or Apple Calendar can fetch your bill and note due dates without you logging in each time. Anyone with that link can see those due dates, so treat it like a password — you can regenerate it at any time from the settings menu to invalidate the old one.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Third parties</h2>
+          <ul>
+            <li>We do not use analytics or ad trackers, and we do not sell your data.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Your controls</h2>
+          <ul>
+            <li>You can download a copy of everything stored under your account (notes, characters, reminders, and bills) at any time from the settings menu — no need to ask.</li>
+            <li>You can also permanently delete everything stored under your account (notes, characters, reminders, and bills) at any time from the settings menu, without needing to contact anyone.</li>
+          </ul>
+        </section>
+
+        <p class="closing">Removing your data through the settings menu doesn't remove your Discord account's login access — if you'd like that revoked too, or need help with anything the self-service options don't cover, contact <a href="https://discord.com/users/127494415521415169">Awucard</a>.</p>
       </div>
     </div>
   </body>
