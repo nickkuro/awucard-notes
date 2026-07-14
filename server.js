@@ -345,7 +345,12 @@ function startBillReminderJob() {
 // ---------- Digest DM job (opt-in daily/weekly/monthly summary) ----------
 const DIGEST_INTERVALS = { daily: 24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 1000, monthly: 30 * 24 * 60 * 60 * 1000 };
 
-function buildDigestMessage(overdue, dueSoon, reminders) {
+function buildDigestMessage(overdue, dueSoon, reminders, timezone) {
+  const tz = timezone || "UTC";
+  // Spelled-out month (e.g. "Jul 16, 2026") sidesteps the MM/DD vs DD/MM
+  // ambiguity entirely, and the reminder time is shown in the user's own
+  // stored timezone rather than a fixed UTC.
+  const fmt = (ts) => new Date(ts).toLocaleString("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
   const lines = [];
   if (overdue.length) {
     lines.push("**Overdue:**");
@@ -357,7 +362,7 @@ function buildDigestMessage(overdue, dueSoon, reminders) {
   }
   if (reminders.length) {
     lines.push((overdue.length || dueSoon.length) ? "\n**Upcoming reminders:**" : "**Upcoming reminders:**");
-    reminders.forEach((r) => lines.push(`- ${r.noteTitle || "Untitled note"} — ${new Date(r.fireAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC`));
+    reminders.forEach((r) => lines.push(`- ${r.noteTitle || "Untitled note"} — ${fmt(r.fireAt)}`));
   }
   return lines.join("\n");
 }
@@ -378,7 +383,7 @@ function startDigestJob() {
         const dueSoon = bills.filter((b) => !b.paid && b.dueDate && b.dueDate >= todayStr && b.dueDate <= cutoffStr);
         const reminders = store.listReminders(user.id).filter((r) => r.fireAt <= now + interval);
         if (overdue.length || dueSoon.length || reminders.length) {
-          const content = buildDigestMessage(overdue, dueSoon, reminders);
+          const content = buildDigestMessage(overdue, dueSoon, reminders, user.timezone);
           await sendDM(user.id, content, { label: "Ledger digest", buttonUrl: getAppUrl() });
         }
       } catch (err) {

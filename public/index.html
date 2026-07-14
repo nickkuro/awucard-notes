@@ -3026,7 +3026,10 @@ var selectedQuickMins = null;
 
 function formatFireAt(ts, timezone) {
   var tz=timezone||(state.user&&state.user.timezone)||"UTC";
-  return new Date(ts).toLocaleString("en-GB",{timeZone:tz,dateStyle:"medium",timeStyle:"short"});
+  // No explicit locale -- let the browser's own locale decide date order
+  // (MM/DD for US visitors, DD/MM for most EU ones, etc.) instead of
+  // forcing one region's convention on everyone.
+  return new Date(ts).toLocaleString(undefined,{timeZone:tz,dateStyle:"medium",timeStyle:"short"});
 }
 
 function openReminderModal(note) {
@@ -3503,7 +3506,7 @@ function renderCalSidePanel(date) {
   var tz = (state.user&&state.user.timezone)||"UTC";
   var todayStr = new Date().toISOString().slice(0,10);
 
-  dateEl.textContent = date.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  dateEl.textContent = date.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 
   var html = "";
   if(events.notes.length){
