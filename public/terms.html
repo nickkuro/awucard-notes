@@ -9,9 +9,11 @@
         color-scheme: dark;
         --bg: #10131a;
         --panel: #171b24;
+        --panel-hi: #1d2230;
         --text: #f5f7fb;
         --muted: #9aa3b2;
         --accent: #f0b84b;
+        --border: rgba(255,255,255,0.08);
       }
       * { box-sizing: border-box; }
       body {
@@ -28,7 +30,7 @@
       }
       .card {
         background: var(--panel);
-        border: 1px solid rgba(255,255,255,0.08);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 24px;
         box-shadow: 0 12px 36px rgba(0,0,0,0.25);
@@ -52,6 +54,41 @@
       .back:hover {
         background: rgba(232,163,61,0.18);
       }
+      .intro { margin-bottom: 20px; }
+      .summary {
+        background: var(--panel-hi);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 28px;
+      }
+      .summary-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 8px;
+      }
+      .summary ul { margin: 0; padding-left: 20px; }
+      .summary li { margin-bottom: 4px; }
+      .summary li:last-child { margin-bottom: 0; }
+      section { margin-bottom: 26px; }
+      section:last-of-type { margin-bottom: 0; }
+      section h2 {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+        margin: 0 0 12px;
+      }
+      section ul { margin: 0; padding-left: 20px; }
+      section li { margin-bottom: 8px; }
+      section li:last-child { margin-bottom: 0; }
+      .closing { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
     </style>
   </head>
   <body>
@@ -59,15 +96,58 @@
       <a class="back" href="/">← Back to Ledger</a>
       <div class="card">
         <h1>Terms of Service</h1>
-        <p>These are a short, practical set of terms for using Ledger.</p>
-        <ul>
-          <li>You are responsible for the account you use to sign in and for the content you create.</li>
-          <li>Do not use Ledger to store or share content that is illegal, abusive, or harmful.</li>
-          <li>You keep ownership of your notes and characters. By using the service, you allow the app to store and display them for your account.</li>
-          <li>This is a hobby project, so the service may change, be interrupted, or be discontinued at any time.</li>
-          <li>We may suspend or remove access if the service is used in a way that breaks these terms or harms other users.</li>
-        </ul>
-        <p>If you have questions, please contact <a href="https://discord.com/users/127494415521415169">Awucard</a> directly.</p>
+        <p class="intro">These are a short, practical set of terms for using Ledger — a hobby project, not a commercial product.</p>
+
+        <div class="summary">
+          <div class="summary-title">In short</div>
+          <ul>
+            <li>You're responsible for your account and what you post — keep any credentials (password, calendar feed link) private.</li>
+            <li>This is a hobby project with no uptime guarantee or warranty — don't rely on it as your only copy of anything important.</li>
+            <li>You can export or delete your own data anytime; access may be suspended for accounts that break these terms.</li>
+          </ul>
+        </div>
+
+        <section>
+          <h2>Your account</h2>
+          <ul>
+            <li>You are responsible for the account you use to sign in — whether that's Discord or a local username/password — and for keeping any credentials tied to it private, including your password and your personal calendar feed link.</li>
+            <li>If you were given a local (non-Discord) account by an admin, they can reset its password or remove it at their discretion.</li>
+            <li>Signing in with Discord means you also need to meet Discord's own age and account requirements.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Your content</h2>
+          <ul>
+            <li>You keep ownership of your notes, characters, and bills. By using the service, you allow the app to store and display them for your account.</li>
+            <li>Do not use Ledger to store or share content that is illegal, abusive, or harmful.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Bills &amp; reminders</h2>
+          <ul>
+            <li>Bill tracking, due-date forecasts, and Discord DM/digest reminders are provided for convenience only — they're not a substitute for your bank, a bill-pay service, or your own records.</li>
+            <li>Reminder delivery depends on Discord's API and a bot staying online, and isn't guaranteed. Don't rely on Ledger as your sole reminder for anything with real financial consequences.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Service availability</h2>
+          <ul>
+            <li>This is a hobby project, so the service may change, be interrupted, or be discontinued at any time, and is provided as-is with no warranty of any kind.</li>
+            <li>We may suspend or remove access if the service is used in a way that breaks these terms or harms other users.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Your data controls</h2>
+          <ul>
+            <li>You can export or permanently delete everything under your account yourself, anytime, from the settings menu — see the <a href="/privacy.html">Privacy Policy</a> for details.</li>
+          </ul>
+        </section>
+
+        <p class="closing">If you have questions, please contact <a href="https://discord.com/users/127494415521415169">Awucard</a> directly.</p>
       </div>
     </div>
   </body>
