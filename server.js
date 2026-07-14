@@ -707,6 +707,7 @@ app.get("/api/admin/allowlist", requireAdmin, async (req, res) => {
   await Promise.all(result.map(async (entry) => {
     entry.username = await resolveDiscordUsername(entry.id);
     entry.billsAccess = entry.source === "admin" || store.hasBillsAccess(entry.id);
+    entry.lastLoginAt = (store.getUser(entry.id) || {}).lastLoginAt || null;
   }));
   res.json(result);
 });
