@@ -432,7 +432,7 @@ app.get("/auth/discord/callback", authLimiter, async (req, res) => {
       incomeEstimate: user.incomeEstimate != null ? user.incomeEstimate : null,
       incomeCurrency: user.incomeCurrency || user.defaultCurrency,
       authType: "discord", mustChangePassword: false, digestFrequency: user.digestFrequency,
-      defaultCurrency: user.defaultCurrency
+      defaultCurrency: user.defaultCurrency, billCategories: user.billCategories
     };
     res.redirect("/");
   } catch (err) {
@@ -452,7 +452,7 @@ app.post("/auth/local-login", authLimiter, async (req, res) => {
     incomeEstimate: user.incomeEstimate != null ? user.incomeEstimate : null,
     incomeCurrency: user.incomeCurrency || user.defaultCurrency,
     authType: "local", mustChangePassword: user.mustChangePassword, digestFrequency: user.digestFrequency,
-    defaultCurrency: user.defaultCurrency
+    defaultCurrency: user.defaultCurrency, billCategories: user.billCategories
   };
   res.json({ ok: true });
 });
@@ -544,11 +544,26 @@ app.put("/api/me/digest", requireAuth, async (req, res) => {
 });
 
 app.put("/api/me/default-currency", requireAuth, async (req, res) => {
-  const { currency } = req.body || {};
+  const { currency, applyToBills } = req.body || {};
   try {
     const user = await store.updateDefaultCurrency(req.session.user.id, currency);
     req.session.user.defaultCurrency = user.defaultCurrency;
-    res.json({ ok: true });
+    let billsUpdated = 0;
+    if (applyToBills) {
+      billsUpdated = await store.updateAllBillsCurrency(req.session.user.id, user.defaultCurrency);
+    }
+    res.json({ ok: true, billsUpdated });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put("/api/me/bill-categories", requireAuth, async (req, res) => {
+  const { categories } = req.body || {};
+  try {
+    const user = await store.updateBillCategories(req.session.user.id, categories);
+    req.session.user.billCategories = user.billCategories;
+    res.json({ ok: true, billCategories: user.billCategories });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

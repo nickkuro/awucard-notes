@@ -52,7 +52,8 @@ Each user signs in with Discord and gets their own private notes space. Data liv
 - "How is this calculated?" breakdown showing exactly which bills (and how many times each) make up the totals
 - Spend-by-category breakdown and a payment history section based on what's actually been paid
 - Estimated monthly income input on the dashboard, with a live left-over/short-by comparison against what's due this month
-- Per-user default currency (Settings → Account) pre-fills new bills and the income estimate instead of always defaulting to USD
+- Per-user default currency (Settings → Account) pre-fills new bills and the income estimate instead of always defaulting to USD; changing it can also relabel your existing bills to match
+- Customizable bill categories (Settings → Account) — add or remove categories instead of being stuck with a fixed list
 
 **Discord integration**
 - Discord OAuth2 login, with an optional allow-list of approved user IDs

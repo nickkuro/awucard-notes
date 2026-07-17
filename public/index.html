@@ -1348,6 +1348,17 @@ kbd {
             <button class="btn-primary" id="defaultCurrencySave">Save default currency</button>
           </div>
         </div>
+        <div class="settings-pane-section hidden" id="billCategoriesSection">
+          <div class="settings-pane-section-heading">Bill categories</div>
+          <p style="margin-bottom:12px;">Customize which categories are available when adding or editing a bill.</p>
+          <div class="tag-editor" id="billCategoryChips"></div>
+          <div class="modal-field" style="margin-top:8px;">
+            <input type="text" class="tag-input" id="billCategoryInput" placeholder="+ category (press Enter)" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:8px 9px;font-size:14px;color:var(--ink);" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn-primary" id="billCategoriesSave">Save categories</button>
+          </div>
+        </div>
         <div class="settings-pane-section hidden" id="changePasswordSection">
           <div class="settings-pane-section-heading">Change password</div>
           <div class="modal-field">
@@ -1560,11 +1571,11 @@ kbd {
         </div>
         <div class="info-item">
           <div class="info-item-title">Default currency</div>
-          <div class="info-item-body">Set a default currency in Settings → Account so new bills and your income estimate pre-fill with it instead of USD. You can still pick a different currency per bill whenever you need to.</div>
+          <div class="info-item-body">Set a default currency in Settings → Account so new bills and your income estimate pre-fill with it instead of USD. You can still pick a different currency per bill whenever you need to. Changing the setting offers to relabel all your existing bills to match too — this only changes the currency shown, it doesn't convert the amounts.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Bills</div>
-          <div class="info-item-body">If you've been granted access, the Bills tab tracks recurring or one-time bills: amount, currency, due date, frequency, category, and a Low/Medium/High/Urgent priority (which also sets the bill's colour). Mark a bill paid to log it and automatically roll a recurring bill to its next due date. The dashboard shows overdue/upcoming/paid counts, a 12-month forecast, a "How is this calculated?" breakdown, spend by category, and recent payment history. Bills also appear on the Calendar and can send Discord DM reminders ahead of the due date. Each account's bills are completely private — nobody else can see them.</div>
+          <div class="info-item-body">If you've been granted access, the Bills tab tracks recurring or one-time bills: amount, currency, due date, frequency, category, and a Low/Medium/High/Urgent priority (which also sets the bill's colour). Categories are yours to customize from Settings → Account — add or remove them to match how you actually track spending. Mark a bill paid to log it and automatically roll a recurring bill to its next due date. The dashboard shows overdue/upcoming/paid counts, a 12-month forecast, a "How is this calculated?" breakdown, spend by category, and recent payment history. Bills also appear on the Calendar and can send Discord DM reminders ahead of the due date. Each account's bills are completely private — nobody else can see them.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Manage access (admin only)</div>
@@ -1633,6 +1644,8 @@ kbd {
           <div class="cl-version">v2.14</div>
           <div class="cl-items">
             <div class="cl-item new">Added a "Default currency" setting (Settings → Account) — pre-fills the currency when you add a new bill or set your income estimate, instead of always defaulting to USD.</div>
+            <div class="cl-item new">Changing your default currency now offers to relabel all your existing bills to match it too — just changes the currency shown, doesn't convert the amounts.</div>
+            <div class="cl-item new">Bill categories are now yours to customize (Settings → Account) — add or remove categories instead of being stuck with a fixed list. Comes with a new "Savings" category by default.</div>
           </div>
         </div>
         <div class="cl-entry">
@@ -1972,6 +1985,7 @@ var saveTimers = {};
 var saveStatus = {};
 var charDropdownOpen = false;
 var pendingAction = null; // {type: 'deleteNote'|'clearNotes'|'deleteChar', id?}
+var billCategoriesDraft = [];
 var pendingResetAccountId = null;
 var editingCharId = null;
 
@@ -2038,6 +2052,8 @@ function boot() {
     if(state.canAccessBills){
       document.getElementById("tabBills").classList.remove("hidden");
     }
+    var billCatSection=document.getElementById("billCategoriesSection");
+    if(billCatSection) billCatSection.classList.toggle("hidden", !state.canAccessBills);
     document.getElementById("settingsAdminGroup").classList.toggle("hidden", !state.isAdmin);
     var changePwSection=document.getElementById("changePasswordSection");
     if(changePwSection) changePwSection.classList.toggle("hidden", user.authType!=="local");
@@ -2764,6 +2780,9 @@ function openSettingsPane(name) {
     document.getElementById("cpCurrentPassword").value="";
     document.getElementById("cpNewPassword").value="";
     document.getElementById("cpConfirmPassword").value="";
+    billCategoriesDraft=getBillCategories().slice();
+    renderBillCategoryChips();
+    document.getElementById("billCategoryInput").value="";
   } else if(name==="notifications"){
     document.getElementById("discordDigestFrequency").value=(state.user&&state.user.digestFrequency)||"off";
   } else if(name==="data"){
@@ -2797,6 +2816,50 @@ document.querySelectorAll(".settings-nav-item[data-pane]").forEach(function(btn)
   });
 });
 
+function renderBillCategoryChips() {
+  var container = document.getElementById("billCategoryChips");
+  container.innerHTML = billCategoriesDraft.map(function(c){
+    return '<span class="tag-chip-edit">'+esc(c)+
+      '<button data-remove-category="'+esc(c)+'" aria-label="Remove" title="Remove">×</button></span>';
+  }).join("");
+  container.querySelectorAll("[data-remove-category]").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var val=btn.getAttribute("data-remove-category");
+      if(billCategoriesDraft.length<=1) return;
+      billCategoriesDraft=billCategoriesDraft.filter(function(c){return c!==val;});
+      renderBillCategoryChips();
+    });
+  });
+}
+
+document.getElementById("billCategoryInput").addEventListener("keydown",function(e){
+  var input=e.target;
+  if(e.key==="Enter"||e.key===","){
+    e.preventDefault();
+    var v=input.value.trim().replace(/,/g,"");
+    if(v && v.length<=30 && billCategoriesDraft.map(function(c){return c.toLowerCase();}).indexOf(v.toLowerCase())===-1){
+      billCategoriesDraft.push(v);
+      renderBillCategoryChips();
+    }
+    input.value="";
+  } else if(e.key==="Backspace"&&!input.value&&billCategoriesDraft.length>1){
+    billCategoriesDraft.pop();
+    renderBillCategoryChips();
+  }
+});
+
+document.getElementById("billCategoriesSave").addEventListener("click",function(){
+  api("/api/me/bill-categories",{method:"PUT",body:JSON.stringify({categories:billCategoriesDraft})}).then(function(res){
+    if(state.user) state.user.billCategories=res.billCategories;
+    billCategoriesDraft=res.billCategories.slice();
+    renderBillCategoryChips();
+    if(state.view==="bills") renderBillList({keepEditor:true});
+    showToast("Bill categories saved");
+  }).catch(function(){
+    showToast("Couldn't save categories");
+  });
+});
+
 document.getElementById("clearNotesBtn").addEventListener("click",function(){
   document.getElementById("settingsOverlay").classList.add("hidden");
   var c=currentChar();
@@ -2814,10 +2877,15 @@ document.getElementById("timezoneSave").addEventListener("click",function(){
 
 document.getElementById("defaultCurrencySave").addEventListener("click",function(){
   var currency=document.getElementById("defaultCurrencySelect").value;
-  api("/api/me/default-currency",{method:"PUT",body:JSON.stringify({currency:currency})}).then(function(){
-    if(state.user) state.user.defaultCurrency=currency;
-    showToast("Default currency saved");
-  });
+  var current=(state.user&&state.user.defaultCurrency)||"USD";
+  if(currency===current){
+    api("/api/me/default-currency",{method:"PUT",body:JSON.stringify({currency:currency})}).then(function(){
+      if(state.user) state.user.defaultCurrency=currency;
+      showToast("Default currency saved");
+    });
+    return;
+  }
+  openConfirm("Change your default currency to "+currency+"? This will also relabel all of your existing bills to "+currency+" — amounts won't be converted, just the currency shown.", {type:"changeDefaultCurrency", currency:currency});
 });
 
 document.getElementById("cpSave").addEventListener("click",function(){
@@ -3246,6 +3314,17 @@ document.getElementById("confirmOk").addEventListener("click",function(){
     api("/api/me/ical-token/regenerate",{method:"POST"}).then(function(res){
       document.getElementById("calendarFeedUrl").value=res.url;
       showToast("Calendar link regenerated");
+    });
+    return;
+  }
+  else if(pendingAction.type==="changeDefaultCurrency"){
+    var newCurrency=pendingAction.currency;
+    closeConfirm();
+    api("/api/me/default-currency",{method:"PUT",body:JSON.stringify({currency:newCurrency,applyToBills:true})}).then(function(res){
+      if(state.user) state.user.defaultCurrency=newCurrency;
+      state.bills.forEach(function(b){ b.currency=newCurrency; });
+      if(state.view==="bills") renderBillList();
+      showToast("Default currency updated"+(res&&res.billsUpdated?" — "+res.billsUpdated+" bill"+(res.billsUpdated===1?"":"s")+" relabeled":""));
     });
     return;
   }
@@ -3729,7 +3808,11 @@ var BILL_PRIORITIES = ["low","medium","high","urgent"];
 var PRIORITY_LABELS = { low:"Low", medium:"Medium", high:"High", urgent:"Urgent" };
 var PRIORITY_COLORS = { low:"#4fa8a0", medium:"#7c8cc9", high:"#e8a33d", urgent:"#c9605a" };
 var PRIORITY_ORDER = { urgent:3, high:2, medium:1, low:0 };
-var BILL_CATEGORIES = ["Housing","Utilities","Entertainment","Insurance","Subscriptions","Food","Transport","Health","Other"];
+var DEFAULT_BILL_CATEGORIES = ["Housing","Utilities","Entertainment","Insurance","Subscriptions","Food","Transport","Health","Savings","Other"];
+function getBillCategories() {
+  var list = state.user && state.user.billCategories;
+  return (list && list.length) ? list : DEFAULT_BILL_CATEGORIES;
+}
 var BILL_FREQS = [
   {val:"one-time",label:"One-time"},{val:"weekly",label:"Weekly"},
   {val:"biweekly",label:"Bi-weekly"},{val:"monthly",label:"Monthly"},
@@ -4215,8 +4298,10 @@ function renderBillEditor() {
   var freqOptions = BILL_FREQS.map(function(f){
     return '<option value="'+f.val+'"'+(bill.frequency===f.val?" selected":"")+'>'+f.label+'</option>';
   }).join("");
-  var catOptions = BILL_CATEGORIES.map(function(c){
-    return '<option value="'+c+'"'+(bill.category===c?" selected":"")+'>'+c+'</option>';
+  var billCategoryList = getBillCategories();
+  var catList = (bill.category && billCategoryList.indexOf(bill.category)===-1) ? billCategoryList.concat([bill.category]) : billCategoryList;
+  var catOptions = catList.map(function(c){
+    return '<option value="'+esc(c)+'"'+(bill.category===c?" selected":"")+'>'+esc(c)+'</option>';
   }).join("");
   var currOptions = BILL_CURRENCIES.map(function(c){
     return '<option value="'+c+'"'+(bill.currency===c?" selected":"")+'>'+c+'</option>';

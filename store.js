@@ -9,6 +9,7 @@ const SQLITE_FILE = path.join(DATA_DIR, "ledger.sqlite3");
 const BUILDING_FILE = path.join(DATA_DIR, "ledger.sqlite3.building");
 const LEGACY_JSON_FILE = path.join(DATA_DIR, "db.json");
 
+const DEFAULT_BILL_CATEGORIES = ["Housing", "Utilities", "Entertainment", "Insurance", "Subscriptions", "Food", "Transport", "Health", "Savings", "Other"];
 const BILL_PRIORITIES = ["low", "medium", "high", "urgent"];
 const PRIORITY_COLORS = { low: "#4fa8a0", medium: "#7c8cc9", high: "#e8a33d", urgent: "#c9605a" };
 const PRIORITY_ORDER = { urgent: 3, high: 2, medium: 1, low: 0 };
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS users (
   digestFrequency TEXT DEFAULT 'off',
   lastDigestSentAt INTEGER,
   lastLoginAt INTEGER,
-  defaultCurrency TEXT DEFAULT 'USD'
+  defaultCurrency TEXT DEFAULT 'USD',
+  billCategories TEXT
 );
 
 CREATE TABLE IF NOT EXISTS characters (
@@ -142,6 +144,7 @@ function ensureSchemaUpToDate(handle) {
   ensureColumn(handle, "users", "lastDigestSentAt", "INTEGER");
   ensureColumn(handle, "users", "lastLoginAt", "INTEGER");
   ensureColumn(handle, "users", "defaultCurrency", "TEXT DEFAULT 'USD'");
+  ensureColumn(handle, "users", "billCategories", "TEXT");
 }
 
 // Migrates a legacy data/db.json into the (already schema-created) handle.
@@ -328,7 +331,8 @@ function rowToUser(row) {
     incomeEstimate: row.incomeEstimate, incomeCurrency: row.incomeCurrency, updatedAt: row.updatedAt,
     authType: row.authType || "discord", mustChangePassword: !!row.mustChangePassword,
     digestFrequency: row.digestFrequency || "off", lastLoginAt: row.lastLoginAt || null,
-    lastDigestSentAt: row.lastDigestSentAt || null, defaultCurrency: row.defaultCurrency || "USD"
+    lastDigestSentAt: row.lastDigestSentAt || null, defaultCurrency: row.defaultCurrency || "USD",
+    billCategories: row.billCategories ? JSON.parse(row.billCategories) : DEFAULT_BILL_CATEGORIES.slice()
   };
 }
 
@@ -428,6 +432,36 @@ async function updateDefaultCurrency(id, currency) {
   if (!existing) return null;
   db.prepare("UPDATE users SET defaultCurrency = :defaultCurrency WHERE id = :id").run({ id, defaultCurrency: currency });
   return rowToUser({ ...existing, defaultCurrency: currency });
+}
+
+// Relabels every bill this owner has to a new currency -- does not convert
+// amounts, just changes the currency code stored alongside them. Used when
+// the user opts to have their existing bills follow a new default currency.
+async function updateAllBillsCurrency(ownerId, currency) {
+  if (!BILL_CURRENCIES.includes(currency)) throw new Error("Invalid currency.");
+  const result = db.prepare("UPDATE bills SET currency = :currency WHERE ownerId = :ownerId").run({ ownerId, currency });
+  return Number(result.changes);
+}
+
+async function updateBillCategories(id, categories) {
+  if (!Array.isArray(categories)) throw new Error("Categories must be a list.");
+  const seen = new Set();
+  const cleaned = [];
+  for (const raw of categories) {
+    const c = typeof raw === "string" ? raw.trim() : "";
+    if (!c || c.length > 30) continue;
+    const key = c.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(c);
+  }
+  if (!cleaned.length) throw new Error("At least one category is required.");
+  if (cleaned.length > 40) throw new Error("Too many categories.");
+  const existing = db.prepare("SELECT * FROM users WHERE id = :id").get({ id });
+  if (!existing) return null;
+  const billCategories = JSON.stringify(cleaned);
+  db.prepare("UPDATE users SET billCategories = :billCategories WHERE id = :id").run({ id, billCategories });
+  return rowToUser({ ...existing, billCategories });
 }
 
 // Self-service "remove my data" -- wipes everything owned by this account
@@ -981,7 +1015,7 @@ async function revokeBillsAccess(id) {
 }
 
 module.exports = {
-  upsertUser, getUser, updateUserTimezone, updateUserIncome, updateDefaultCurrency, deleteAllUserData,
+  upsertUser, getUser, updateUserTimezone, updateUserIncome, updateDefaultCurrency, updateAllBillsCurrency, updateBillCategories, deleteAllUserData,
   createLocalAccount, listLocalAccounts, verifyLocalLogin, changeOwnPassword, adminResetPassword, deleteLocalAccount,
   recordLogin, getOrCreateIcalToken, regenerateIcalToken, getUserByIcalToken,
   updateDigestFrequency, listUsersWithDigestEnabled, markDigestSent,

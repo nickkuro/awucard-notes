@@ -260,6 +260,50 @@ async function checkDefaultCurrency() {
   const updated = await store.updateDefaultCurrency(ownerId, 'EUR');
   assert.equal(updated.defaultCurrency, 'EUR');
   assert.equal(store.getUser(ownerId).defaultCurrency, 'EUR', 'the change should persist');
+
+  const otherOwnerId = `store-check-currency-other-${Date.now()}`;
+  await store.upsertUser({ id: otherOwnerId, username: 'Other Currency Person', avatar: null });
+  await store.createBill(ownerId, { name: 'Rent', amount: 1200, currency: 'USD', dueDate: '2026-09-01', frequency: 'monthly' });
+  await store.createBill(ownerId, { name: 'Internet', amount: 60, currency: 'CAD', dueDate: '2026-09-05', frequency: 'monthly' });
+  const otherBill = await store.createBill(otherOwnerId, { name: 'Someone else\'s bill', amount: 20, currency: 'USD', dueDate: '2026-09-10', frequency: 'monthly' });
+
+  await assert.rejects(
+    () => store.updateAllBillsCurrency(ownerId, 'DOGE'),
+    /Invalid currency/,
+    'cascading an unrecognized currency code should be rejected'
+  );
+
+  const billsUpdated = await store.updateAllBillsCurrency(ownerId, 'GBP');
+  assert.equal(billsUpdated, 2, 'should report the number of bills relabeled');
+  const ownerBills = await store.listBills(ownerId);
+  assert.ok(ownerBills.every((b) => b.currency === 'GBP'), 'every one of this owner\'s bills should now show the new currency');
+  const untouchedOther = await store.listBills(otherOwnerId);
+  assert.equal(untouchedOther.find((b) => b.id === otherBill.id).currency, 'USD', 'another owner\'s bills should be untouched by the cascade');
+}
+
+async function checkBillCategories() {
+  const ownerId = `store-check-categories-${Date.now()}`;
+  const user = await store.upsertUser({ id: ownerId, username: 'Category Person', avatar: null });
+  assert.deepEqual(
+    user.billCategories,
+    ['Housing', 'Utilities', 'Entertainment', 'Insurance', 'Subscriptions', 'Food', 'Transport', 'Health', 'Savings', 'Other'],
+    'a brand new user should get the built-in default category list'
+  );
+
+  await assert.rejects(
+    () => store.updateBillCategories(ownerId, []),
+    /At least one category/,
+    'an empty category list should be rejected'
+  );
+  await assert.rejects(
+    () => store.updateBillCategories(ownerId, 'not an array'),
+    /must be a list/,
+    'a non-array categories value should be rejected'
+  );
+
+  const updated = await store.updateBillCategories(ownerId, ['Rent', ' Groceries ', 'rent', 'RENT', '']);
+  assert.deepEqual(updated.billCategories, ['Rent', 'Groceries'], 'should trim whitespace, drop blanks, and dedupe case-insensitively');
+  assert.deepEqual(store.getUser(ownerId).billCategories, ['Rent', 'Groceries'], 'the change should persist');
 }
 
 async function runStoreCheck() {
@@ -273,6 +317,7 @@ async function runStoreCheck() {
   await checkLocalAccounts();
   await checkIcalTokenAndDigest();
   await checkDefaultCurrency();
+  await checkBillCategories();
   console.log('Store check passed.');
 }
 
