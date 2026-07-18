@@ -1646,6 +1646,7 @@ kbd {
             <div class="cl-item new">Added a "Default currency" setting (Settings → Account) — pre-fills the currency when you add a new bill or set your income estimate, instead of always defaulting to USD.</div>
             <div class="cl-item new">Changing your default currency now offers to relabel all your existing bills to match it too — just changes the currency shown, doesn't convert the amounts.</div>
             <div class="cl-item new">Bill categories are now yours to customize (Settings → Account) — add or remove categories instead of being stuck with a fixed list. Comes with a new "Savings" category by default.</div>
+            <div class="cl-item fix">Actually fixed the notes list scrollbar breaking after switching to Calendar or Bills and back. The last go at this treated a symptom; turns out the notes pane was quietly falling back to the wrong layout mode. Fixed properly at the source this time.</div>
           </div>
         </div>
         <div class="cl-entry">
@@ -3471,15 +3472,12 @@ function switchView(view) {
   } else {
     document.getElementById("app").classList.remove("show-calendar");
     document.getElementById("app").classList.remove("show-bills");
-    notesContent.style.display = "";
+    // Must be "flex", not "" -- notesViewContent's flex layout is what gives
+    // the note list its bounded height + scroll. Clearing to "" falls back to
+    // display:block (no stylesheet rule sets it), which lets the list grow to
+    // full content height with no scrollbar after switching back from a view.
+    notesContent.style.display = "flex";
     editor.classList.remove("hidden");
-    // The sidebar (and its note list) was display:none while calendar/bills
-    // was showing on mobile. Some Android builds don't recompute an
-    // overflow-y:auto pane's scroll metrics on the display:none -> visible
-    // transition, leaving touch scroll stuck until an unrelated reflow
-    // fixes it -- force one immediately instead of waiting for that.
-    var noteList = document.getElementById("noteList");
-    if(noteList){ noteList.style.display="none"; void noteList.offsetHeight; noteList.style.display=""; }
   }
 }
 
