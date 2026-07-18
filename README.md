@@ -33,6 +33,7 @@ Each user signs in with Discord and gets their own private notes space. Data liv
 - Plain text or Markdown notes with auto-save and live rendering
 - Character-based organization with colored character groups
 - Sticky notes that stay pinned across every character view
+- Spoiler notes — blur a note's card in the list until you open it, for plot twists and anything you don't want to see at a glance
 - Tags, full-text search, and filtered note views
 - Inline image embedding
 - One-step "previous version" safety net — restore a note's content from right before the last save if an accidental paste-over gets autosaved

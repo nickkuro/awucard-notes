@@ -230,6 +230,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .note-card-meta { display: flex; justify-content: space-between; align-items: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-dim); }
 .note-card-tags { display: flex; gap: 4px; overflow: hidden; }
 .note-card-tags span { white-space: nowrap; }
+/* Spoiler notes: blur the readable content in the list so you have to open
+   the note to see it. The 🙈 indicator sits outside these selectors so it
+   stays sharp as an affordance. */
+.note-card.spoiler .note-card-title,
+.note-card.spoiler .note-card-snippet,
+.note-card.spoiler .note-card-tags { filter: blur(5px); user-select: none; }
+.note-card-spoiler { font-size: 12px; margin-top: 1px; flex-shrink: 0; }
 
 /* --- bottom bar --- */
 .sidebar-bottom { 
@@ -313,6 +320,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 .editor-action-btn:hover { color: var(--ink); border-color: var(--accent); }
 .editor-action-btn.sticky-toggle.active { color: var(--accent); border-color: var(--accent); background: rgba(232,163,61,0.08); }
+.editor-action-btn.spoiler-toggle.active { color: var(--accent); border-color: var(--accent); background: rgba(232,163,61,0.08); }
 
 /* reminder modal */
 .reminder-modal { max-width: 380px; width: 95%; }
@@ -1546,6 +1554,10 @@ kbd {
           <div class="info-item-body">Pin any note to keep it visible across character views. Sticky notes appear at the top of the list wherever you are.</div>
         </div>
         <div class="info-item">
+          <div class="info-item-title">Spoiler notes</div>
+          <div class="info-item-body">Hit "🙈 Spoiler" in the editor to blur a note's card in the list — its title, preview, and tags are hidden until you open the note itself. Handy for plot twists and anything you don't want to catch out of the corner of your eye.</div>
+        </div>
+        <div class="info-item">
           <div class="info-item-title">Restore previous version</div>
           <div class="info-item-body">Notes keep a one-step "previous version" snapshot. If an autosave lands right after an accidental paste-over wipes a note, a "Restore previous" button appears in the editor so you can get the old content back.</div>
         </div>
@@ -1646,6 +1658,7 @@ kbd {
             <div class="cl-item new">Added a "Default currency" setting (Settings → Account) — pre-fills the currency when you add a new bill or set your income estimate, instead of always defaulting to USD.</div>
             <div class="cl-item new">Changing your default currency now offers to relabel all your existing bills to match it too — just changes the currency shown, doesn't convert the amounts.</div>
             <div class="cl-item new">Bill categories are now yours to customize (Settings → Account) — add or remove categories instead of being stuck with a fixed list. Comes with a new "Savings" category by default.</div>
+            <div class="cl-item new">Spoiler notes — mark a note as a spoiler (🙈 in the editor) to blur its card in the list until you open it. Good for plot twists you don't want to spot at a glance.</div>
             <div class="cl-item fix">Actually fixed the notes list scrollbar breaking after switching to Calendar or Bills and back. The last go at this treated a symptom; turns out the notes pane was quietly falling back to the wrong layout mode. Fixed properly at the source this time.</div>
           </div>
         </div>
@@ -2153,7 +2166,7 @@ function scheduleSave(note) {
   renderStatus();
   clearTimeout(saveTimers[note.id]);
   saveTimers[note.id]=setTimeout(function(){
-    api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky,dueDate:note.dueDate||null})})
+    api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky,spoiler:note.spoiler,dueDate:note.dueDate||null})})
       .then(function(updated){
         saveStatus[note.id]="saved";
         note.prevTitle=updated.prevTitle; note.prevBody=updated.prevBody; note.prevSavedAt=updated.prevSavedAt;
@@ -2443,13 +2456,14 @@ function renderList() {
       ?'<span class="note-card-title">'+esc(n.title)+'</span>'
       :'<span class="note-card-title untitled">Untitled</span>';
     var pinHtml=n.sticky?'<span class="note-card-pin" title="Sticky">📌</span>':'';
+    var spoilerHtml=n.spoiler?'<span class="note-card-spoiler" title="Spoiler — open the note to view">🙈</span>':'';
     var tagsHtml=n.tags.slice(0,3).map(function(t){
       return '<span style="color:'+tagColor(t)+'">#'+esc(t)+'</span>';
     }).join(" ");
     var trashSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
-    return '<div class="note-card'+(active?" active":"")+'" data-id="'+n.id+'"'+
+    return '<div class="note-card'+(active?" active":"")+(n.spoiler?" spoiler":"")+'" data-id="'+n.id+'"'+
       (borderColor?' style="border-left-color:'+borderColor+'"':'')+'>'+
-      '<div class="note-card-header">'+pinHtml+titleHtml+
+      '<div class="note-card-header">'+spoilerHtml+pinHtml+titleHtml+
         '<button class="note-card-delete" data-delete-id="'+n.id+'" aria-label="Delete note" title="Delete note">'+trashSvg+'</button>'+
       '</div>'+
       '<p class="note-card-snippet">'+(esc(snippet(n.body))||"No content yet")+'</p>'+
@@ -2569,6 +2583,7 @@ function renderEditor() {
         '<div class="editor-actions">'+
           '<button class="editor-action-btn'+(note.prevBody==null&&note.prevTitle==null?' hidden':'')+'" id="restorePrevBtn" title="Restore the version saved right before this one">↺ Restore previous</button>'+
           '<button class="editor-action-btn sticky-toggle'+(note.sticky?' active':'')+'" id="stickyBtn" title="'+(note.sticky?'Unpin note':'Pin note across characters')+'">📌 '+(note.sticky?'Pinned':'Pin')+'</button>'+
+          '<button class="editor-action-btn spoiler-toggle'+(note.spoiler?' active':'')+'" id="spoilerBtn" title="'+(note.spoiler?'Remove spoiler blur':'Blur this note in the list — open it to view')+'">🙈 '+(note.spoiler?'Spoilered':'Spoiler')+'</button>'+
           '<button class="editor-action-btn'+(isLocalAccount?' hidden':'')+'" id="sendDmBtn" title="Send note to Discord DMs">'+
             '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20.317 4.369a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.6 12.6 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.2 14.2 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.073.073 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.04.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.001-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.028M8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.955 2.418-2.157 2.418m7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418"/></svg>'+
             ' Send to DMs'+
@@ -2593,6 +2608,12 @@ function renderEditor() {
 
   document.getElementById("stickyBtn").addEventListener("click",function(){
     note.sticky=!note.sticky;
+    note.updatedAt=Date.now();
+    scheduleSave(note); renderList(); renderEditor();
+  });
+
+  document.getElementById("spoilerBtn").addEventListener("click",function(){
+    note.spoiler=!note.spoiler;
     note.updatedAt=Date.now();
     scheduleSave(note); renderList(); renderEditor();
   });
@@ -3371,7 +3392,7 @@ document.addEventListener("keydown",function(e){
     var note=state.notes[state.selectedId];
     if(note){
       clearTimeout(saveTimers[note.id]);
-      api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky,dueDate:note.dueDate||null})})
+      api("/api/notes/"+note.id,{method:"PUT",body:JSON.stringify({title:note.title,body:note.body,tags:note.tags,sticky:note.sticky,spoiler:note.spoiler,dueDate:note.dueDate||null})})
         .then(function(updated){
           saveStatus[note.id]="saved";
           note.prevTitle=updated.prevTitle; note.prevBody=updated.prevBody; note.prevSavedAt=updated.prevSavedAt;

@@ -13,11 +13,20 @@ async function checkNotesAndCharacters() {
     characterId: characterA.id
   });
 
+  assert.equal(note.spoiler, false, 'a new note should not be a spoiler by default');
+
   const updated = await store.updateNote(ownerId, note.id, { sticky: true });
   assert.equal(updated.sticky, true);
   assert.strictEqual(typeof updated.sticky, 'boolean', 'sticky should round-trip as a real boolean, not 0/1');
   assert.ok(Array.isArray(updated.tags), 'tags should round-trip as a real array, not a JSON string');
   assert.deepEqual(updated.tags, ['shared']);
+
+  const spoilered = await store.updateNote(ownerId, note.id, { spoiler: true });
+  assert.equal(spoilered.spoiler, true);
+  assert.strictEqual(typeof spoilered.spoiler, 'boolean', 'spoiler should round-trip as a real boolean, not 0/1');
+  assert.equal(spoilered.sticky, true, 'toggling spoiler should leave sticky untouched');
+  const unspoilered = await store.updateNote(ownerId, note.id, { spoiler: false });
+  assert.equal(unspoilered.spoiler, false, 'spoiler should be clearable');
 
   const visibleNotes = await store.listNotes(ownerId, characterB.id);
   const found = visibleNotes.find((item) => item.id === note.id);

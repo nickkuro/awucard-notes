@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS notes (
   body TEXT,
   tags TEXT,
   sticky INTEGER,
+  spoiler INTEGER,
   dueDate TEXT,
   createdAt INTEGER,
   updatedAt INTEGER,
@@ -127,6 +128,7 @@ function ensureColumn(handle, table, column, type) {
 }
 
 function ensureSchemaUpToDate(handle) {
+  ensureColumn(handle, "notes", "spoiler", "INTEGER DEFAULT 0");
   ensureColumn(handle, "notes", "prevTitle", "TEXT");
   ensureColumn(handle, "notes", "prevBody", "TEXT");
   ensureColumn(handle, "notes", "prevSavedAt", "INTEGER");
@@ -347,7 +349,7 @@ function rowToNote(row) {
     id: row.id, ownerId: row.ownerId, characterId: row.characterId,
     title: row.title, body: row.body,
     tags: row.tags ? JSON.parse(row.tags) : [],
-    sticky: !!row.sticky, dueDate: row.dueDate,
+    sticky: !!row.sticky, spoiler: !!row.spoiler, dueDate: row.dueDate,
     createdAt: row.createdAt, updatedAt: row.updatedAt,
     prevTitle: row.prevTitle, prevBody: row.prevBody, prevSavedAt: row.prevSavedAt
   };
@@ -663,15 +665,16 @@ async function createNote(ownerId, partial) {
     body: partial.body || "",
     tags: Array.isArray(partial.tags) ? partial.tags : [],
     sticky: Boolean(partial.sticky),
+    spoiler: Boolean(partial.spoiler),
     dueDate: partial.dueDate || null,
     createdAt: now, updatedAt: now
   };
   db.prepare(
-    `INSERT INTO notes (id, ownerId, characterId, title, body, tags, sticky, dueDate, createdAt, updatedAt)
-     VALUES (:id, :ownerId, :characterId, :title, :body, :tags, :sticky, :dueDate, :createdAt, :updatedAt)`
+    `INSERT INTO notes (id, ownerId, characterId, title, body, tags, sticky, spoiler, dueDate, createdAt, updatedAt)
+     VALUES (:id, :ownerId, :characterId, :title, :body, :tags, :sticky, :spoiler, :dueDate, :createdAt, :updatedAt)`
   ).run({
     id: note.id, ownerId: note.ownerId, characterId: note.characterId, title: note.title, body: note.body,
-    tags: JSON.stringify(note.tags), sticky: note.sticky ? 1 : 0, dueDate: note.dueDate,
+    tags: JSON.stringify(note.tags), sticky: note.sticky ? 1 : 0, spoiler: note.spoiler ? 1 : 0, dueDate: note.dueDate,
     createdAt: note.createdAt, updatedAt: note.updatedAt
   });
   return note;
@@ -688,6 +691,7 @@ async function updateNote(ownerId, id, partial) {
   if (typeof partial.body === "string") note.body = partial.body;
   if (Array.isArray(partial.tags)) note.tags = partial.tags;
   if (typeof partial.sticky === "boolean") note.sticky = partial.sticky;
+  if (typeof partial.spoiler === "boolean") note.spoiler = partial.spoiler;
   if ("dueDate" in partial) note.dueDate = partial.dueDate || null;
   note.updatedAt = Date.now();
   // Keep a single-level "previous saved version" snapshot so an accidental
@@ -698,12 +702,12 @@ async function updateNote(ownerId, id, partial) {
     note.prevSavedAt = note.updatedAt;
   }
   db.prepare(
-    `UPDATE notes SET title = :title, body = :body, tags = :tags, sticky = :sticky, dueDate = :dueDate, updatedAt = :updatedAt,
+    `UPDATE notes SET title = :title, body = :body, tags = :tags, sticky = :sticky, spoiler = :spoiler, dueDate = :dueDate, updatedAt = :updatedAt,
      prevTitle = :prevTitle, prevBody = :prevBody, prevSavedAt = :prevSavedAt
      WHERE id = :id`
   ).run({
     id, title: note.title, body: note.body, tags: JSON.stringify(note.tags),
-    sticky: note.sticky ? 1 : 0, dueDate: note.dueDate, updatedAt: note.updatedAt,
+    sticky: note.sticky ? 1 : 0, spoiler: note.spoiler ? 1 : 0, dueDate: note.dueDate, updatedAt: note.updatedAt,
     prevTitle: note.prevTitle ?? null, prevBody: note.prevBody ?? null, prevSavedAt: note.prevSavedAt ?? null
   });
   return note;
