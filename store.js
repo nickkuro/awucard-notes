@@ -4,7 +4,11 @@ const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const DATA_DIR = path.join(__dirname, "data");
+// Defaults to ./data; LEDGER_DATA_DIR lets tests (and anyone who wants to)
+// point the database at a throwaway directory instead of the real one.
+const DATA_DIR = process.env.LEDGER_DATA_DIR
+  ? path.resolve(process.env.LEDGER_DATA_DIR)
+  : path.join(__dirname, "data");
 const SQLITE_FILE = path.join(DATA_DIR, "ledger.sqlite3");
 const BUILDING_FILE = path.join(DATA_DIR, "ledger.sqlite3.building");
 const LEGACY_JSON_FILE = path.join(DATA_DIR, "db.json");

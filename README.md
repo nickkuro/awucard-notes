@@ -177,14 +177,21 @@ The container uses a persistent data volume so notes, sessions, and bills surviv
 .
 ├── server.js         Express server, Discord OAuth flow, and API routes
 ├── store.js          Data layer: notes, characters, reminders, bills, users
-├── store-check.js    Lightweight smoke test for the data layer
+├── store-check.js    Smoke test for the data layer
+├── server-check.js   Route tests for auth guards and cross-user isolation
 ├── public/
-│   ├── index.html      Frontend UI: notes, calendar, bills, and modals
+│   ├── index.html      Page shell, styles, and About/changelog markup
+│   ├── app.js          Frontend app logic (notes, calendar, bills, modals)
+│   ├── vendor/         Self-hosted marked + DOMPurify
 │   ├── terms.html       Terms of Service
 │   └── privacy.html     Privacy Policy
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+Tests run with `npm test` (data-layer smoke test plus the route tests). The
+route tests boot the app on an ephemeral port against a throwaway
+`LEDGER_DATA_DIR`, so they never touch your real database.
 
 ---
 

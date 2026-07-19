@@ -43,6 +43,31 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 1000 * 60 * 60 * 24 * 30 }
 }));
 
+// Security headers. The CSP is deliberately not locked all the way down:
+// the app uses inline styles heavily (style="..." attributes plus one big
+// inline <style> block), so style-src has to allow 'unsafe-inline'. Scripts,
+// though, are all self-hosted now (app.js + the vendored marked/DOMPurify),
+// so script-src stays strict. Note bodies can embed images from any https
+// host, so img-src is intentionally broad.
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https:",
+    "connect-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'"
+  ].join("; "));
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  next();
+});
+
 function renderErrorPage(title, message) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -823,15 +848,22 @@ app.delete("/api/admin/bills-access/:id", requireAdmin, async (req, res) => {
 app.get("/healthz", (req, res) => res.send("ok"));
 app.use(express.static(path.join(__dirname, "public")));
 
-const port = PORT || 3000;
-app.listen(port, () => {
-  console.log(`Ledger running on http://localhost:${port}`);
-  if (BOT_TOKEN) {
-    startReminderJob();
-    startBillReminderJob();
-    startDigestJob();
-    console.log("Reminder jobs started.");
-  } else {
-    console.log("No BOT_TOKEN — DM and reminder features disabled.");
-  }
-});
+// Only start listening / spin up the cron jobs when run directly
+// (`node server.js`). When required by a test, the app is exported instead so
+// it can be mounted on an ephemeral port without side effects.
+if (require.main === module) {
+  const port = PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Ledger running on http://localhost:${port}`);
+    if (BOT_TOKEN) {
+      startReminderJob();
+      startBillReminderJob();
+      startDigestJob();
+      console.log("Reminder jobs started.");
+    } else {
+      console.log("No BOT_TOKEN — DM and reminder features disabled.");
+    }
+  });
+}
+
+module.exports = app;

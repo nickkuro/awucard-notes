@@ -1,6 +1,6 @@
 {
   "name": "ledger-discord",
-  "version": "1.0.0",
+  "version": "2.14.0",
   "description": "Ledger notes app with Discord login, self-hosted",
   "type": "commonjs",
   "engines": {
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node store-check.js"
+    "test": "node store-check.js && node --test server-check.js"
   },
   "dependencies": {
     "express": "^4.19.2",
