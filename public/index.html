@@ -818,10 +818,13 @@ kbd {
 .view-tabs {
   display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
+/* Icon above label rather than beside it: with four tabs, the horizontal
+   layout needed more width than the 300px sidebar could give, and flex items
+   won't shrink below their content, so the last tab clipped. */
 .view-tab {
-  flex: 1; padding: 9px 8px; font-size: 12px; font-weight: 500;
-  color: var(--ink-mid); display: flex; align-items: center; justify-content: center;
-  gap: 6px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  flex: 1; min-width: 0; padding: 7px 4px; font-size: 10.5px; font-weight: 500;
+  color: var(--ink-mid); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; border-bottom: 2px solid transparent; margin-bottom: -1px;
   font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.04em;
 }
 .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
