@@ -1123,6 +1123,26 @@ function renderBudget() {
     ? d.categories.map(function(c){ return budgetCategoryRow(c, cur); }).join("")
     : '<div class="budget-empty">No categories budgeted yet. Set a target below to start.</div>';
 
+  // Categories that already have bills but nothing budgeted. Shown as an
+  // explicit, previewable action rather than writing targets automatically.
+  var suggestHtml = "";
+  if(d.suggestions && d.suggestions.length){
+    suggestHtml =
+      '<div class="budget-suggest">'+
+        '<div class="budget-suggest-title">Start from your bills</div>'+
+        '<p class="budget-suggest-body">'+d.suggestions.length+' categor'+(d.suggestions.length===1?"y has":"ies have")+
+          ' bills but no target yet. These amounts are what those bills cost per month, so yearly and quarterly ones are spread out rather than landing all at once. You can change any of them afterwards.</p>'+
+        '<div class="budget-suggest-list">'+
+          d.suggestions.map(function(s){
+            return '<div class="budget-suggest-row"><span>'+esc(s.category)+
+              ' <span class="budget-suggest-count">'+s.billCount+' bill'+(s.billCount===1?"":"s")+'</span></span>'+
+              '<span class="budget-suggest-amount">'+money(s.amount)+'/mo</span></div>';
+          }).join("")+
+        '</div>'+
+        '<div class="modal-actions"><button class="btn-primary" id="budgetApplySuggest">Create these targets</button></div>'+
+      '</div>';
+  }
+
   var activity = d.expenses.map(function(e){
     return { date:e.spentOn, category:e.category, note:e.note, amount:e.amount, id:e.id, isBill:false };
   }).concat(d.billPayments.map(function(p){
@@ -1158,6 +1178,8 @@ function renderBudget() {
         '<div class="budget-stat unallocated'+(d.unallocated!=null&&d.unallocated<0?" negative":"")+'"><div class="budget-stat-value">'+(d.unallocated!=null?money(d.unallocated):"—")+'</div><div class="budget-stat-label">Unallocated</div></div>'+
       '</div>'+
       '<div class="budget-note">'+noteHtml+'</div>'+
+
+      suggestHtml+
 
       '<div class="budget-section">'+
         '<div class="budget-heading"><span>Categories</span><span class="budget-heading-plain">'+esc(monthLabel(d.month))+'</span></div>'+
@@ -1217,6 +1239,19 @@ function wireBudgetEvents() {
         loadBudget();
         showToast("Expense removed");
       });
+    });
+  });
+
+  var applyBtn = document.getElementById("budgetApplySuggest");
+  if(applyBtn) applyBtn.addEventListener("click",function(){
+    applyBtn.disabled = true;
+    api("/api/budget/"+budgetMonth+"/apply-suggestions",{method:"POST"}).then(function(res){
+      return loadBudget().then(function(){
+        showToast("Created "+res.created+" target"+(res.created===1?"":"s"));
+      });
+    }).catch(function(){
+      applyBtn.disabled = false;
+      showToast("Couldn't create those targets");
     });
   });
 

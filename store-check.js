@@ -387,6 +387,41 @@ async function checkPaymentAmountHistory() {
   await store.deleteAllUserData(ownerId);
 }
 
+async function checkBudgetSuggestions() {
+  const ownerId = `store-check-suggest-${Date.now()}`;
+  await store.upsertUser({ id: ownerId, username: 'Suggest Person', avatar: null });
+
+  await store.createBill(ownerId, { name: 'Rent', amount: 1200, category: 'Housing', frequency: 'monthly', dueDate: '2026-08-01' });
+  await store.createBill(ownerId, { name: 'Insurance', amount: 600, category: 'Insurance', frequency: 'yearly', dueDate: '2026-11-01' });
+  await store.createBill(ownerId, { name: 'Water', amount: 90, category: 'Utilities', frequency: 'quarterly', dueDate: '2026-09-01' });
+  await store.createBill(ownerId, { name: 'Internet', amount: 60, category: 'Utilities', frequency: 'monthly', dueDate: '2026-08-05' });
+  await store.createBill(ownerId, { name: 'New laptop', amount: 2000, category: 'Other', frequency: 'one-time', dueDate: '2026-08-20' });
+
+  const byCat = (list, c) => list.find((s) => s.category === c);
+  const suggestions = store.suggestBudgetTargets(ownerId, '2026-08');
+
+  assert.equal(byCat(suggestions, 'Housing').amount, 1200, 'a monthly bill suggests its full amount');
+  assert.equal(byCat(suggestions, 'Insurance').amount, 50, 'a yearly bill is spread over 12 months, not charged in full');
+  assert.equal(byCat(suggestions, 'Utilities').amount, 90, 'quarterly 90 (=30/mo) plus monthly 60 = 90/mo');
+  assert.equal(byCat(suggestions, 'Utilities').billCount, 2, 'both bills in the category are counted');
+  assert.ok(!byCat(suggestions, 'Other'), 'a one-time purchase is not an ongoing commitment to budget for');
+
+  // A category already budgeted is left alone rather than re-proposed.
+  await store.setBudgetTarget(ownerId, '2026-08', 'Housing', 1500);
+  const afterManual = store.suggestBudgetTargets(ownerId, '2026-08');
+  assert.ok(!byCat(afterManual, 'Housing'), 'an already-budgeted category is not suggested again');
+
+  const applied = await store.applySuggestedBudgetTargets(ownerId, '2026-08');
+  assert.equal(applied.created, afterManual.length);
+  assert.equal(store.suggestBudgetTargets(ownerId, '2026-08').length, 0, 'nothing is left to suggest afterwards');
+
+  const month = store.getBudgetMonth(ownerId, '2026-08');
+  assert.equal(month.categories.find((c) => c.category === 'Housing').target, 1500, "applying suggestions must not overwrite a target the user set");
+  assert.equal(month.categories.find((c) => c.category === 'Insurance').target, 50);
+
+  await store.deleteAllUserData(ownerId);
+}
+
 async function checkImport() {
   const ownerId = `store-check-import-${Date.now()}`;
   await store.upsertUser({ id: ownerId, username: 'Import Person', avatar: null });
@@ -536,6 +571,7 @@ async function runStoreCheck() {
   await checkTrashSoftDelete();
   await checkPaymentAmountHistory();
   await checkBudgetRollover();
+  await checkBudgetSuggestions();
   await checkImport();
   console.log('Store check passed.');
 }

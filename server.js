@@ -868,6 +868,14 @@ app.put("/api/budget/target", requireBillsAccess, async (req, res) => {
   }
 });
 
+app.post("/api/budget/:month/apply-suggestions", requireBillsAccess, async (req, res) => {
+  try {
+    res.json(await store.applySuggestedBudgetTargets(req.session.user.id, req.params.month));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post("/api/budget/expenses", requireBillsAccess, async (req, res) => {
   try {
     res.status(201).json(await store.createExpense(req.session.user.id, req.body || {}));

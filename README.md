@@ -58,6 +58,7 @@ Each user signs in with Discord and gets their own private notes space. Data liv
 
 **Budget** *(same access as Bills)*
 - Monthly envelope budgeting built on the categories you already use for bills
+- "Start from your bills" seeds targets for every category that has bills, spreading yearly/quarterly costs across the months instead of charging them in one lump
 - Bills you've paid count toward their category automatically, so only variable spending gets logged by hand
 - Rollover: underspend carries into next month, overspend carries as a shortfall
 - Targets are versioned by month, so changing this month's budget never rewrites past months

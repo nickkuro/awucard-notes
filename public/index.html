@@ -672,6 +672,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .budget-exp-del { color: var(--ink-dim); font-size: 14px; flex-shrink: 0; padding: 0 2px; }
 .budget-exp-del:hover { color: var(--danger); }
 .budget-empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 24px 0; }
+
+.budget-suggest {
+  background: var(--surface); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 16px 16px 12px; margin-bottom: 26px;
+}
+.budget-suggest-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.budget-suggest-body { font-size: 12.5px; color: var(--ink-mid); line-height: 1.6; margin-bottom: 12px; }
+.budget-suggest-list { margin-bottom: 6px; }
+.budget-suggest-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border);
+}
+.budget-suggest-row:last-child { border-bottom: none; }
+.budget-suggest-count { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-dim); }
+.budget-suggest-amount { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--teal); flex-shrink: 0; }
 .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .color-swatch {
   width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
@@ -1778,7 +1793,7 @@ kbd {
         </div>
         <div class="info-item">
           <div class="info-item-title">Budget</div>
-          <div class="info-item-body">The Budget tab (same access as Bills) turns your categories into monthly envelopes. Give a category a target, then log what you spend against it. Anything already paid through Bills counts toward its category on its own, so the only thing you type by hand is variable spending like groceries or petrol. The bar on each category shows the split: amber is money that came from a bill, teal is what you logged.<br><br>Budgets roll over. Finish a month $60 under on Food and next month starts with $60 extra; go $30 over and next month starts $30 down, so the total stays truthful instead of resetting the damage. Changing a target only affects that month and later ones, so tweaking this month never rewrites your history. Use the month arrows (or the list in the sidebar) to look back at how a previous month actually went.</div>
+          <div class="info-item-body">The Budget tab (same access as Bills) turns your categories into monthly envelopes. When you first open it, "Start from your bills" offers to set up a target for every category that already has bills in it, sized to what those bills cost per month (a yearly bill is spread across twelve months rather than landing whole in one). It shows you exactly what it will create before it does anything, skips categories you've already budgeted, and everything stays editable afterwards. Give a category a target, then log what you spend against it. Anything already paid through Bills counts toward its category on its own, so the only thing you type by hand is variable spending like groceries or petrol. The bar on each category shows the split: amber is money that came from a bill, teal is what you logged.<br><br>Budgets roll over. Finish a month $60 under on Food and next month starts with $60 extra; go $30 over and next month starts $30 down, so the total stays truthful instead of resetting the damage. Changing a target only affects that month and later ones, so tweaking this month never rewrites your history. Use the month arrows (or the list in the sidebar) to look back at how a previous month actually went.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Manage access (admin only)</div>
@@ -1857,6 +1872,8 @@ kbd {
             <div class="cl-item new">New Budget tab. Set a monthly target per category and log what you spend; anything you've already paid through Bills counts automatically, so you only type in the variable stuff like groceries.</div>
             <div class="cl-item new">Budgets roll over. Underspend a category and the leftover carries into next month; overspend and the shortfall carries too, so the envelope stays honest.</div>
             <div class="cl-item new">Changing a target only affects that month onward, so adjusting this month's budget never rewrites what past months were set to.</div>
+            <div class="cl-item new">"Start from your bills" sets up targets for every category that already has bills in it, so you're not filling in an empty budget by hand. Yearly and quarterly bills are spread across the months rather than landing all at once, and a category you've already budgeted is left alone.</div>
+            <div class="cl-item new">Categories with a bill due this month now show up even before you've budgeted for them, so an unbudgeted commitment isn't hidden.</div>
             <div class="cl-item fix">Bills now record what each payment actually cost at the time. Previously "Paid in recent months" valued old payments at the bill's current amount, so raising a bill's price quietly changed your spending history.</div>
           </div>
         </div>

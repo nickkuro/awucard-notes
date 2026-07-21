@@ -1216,6 +1216,57 @@ function spendForMonth(ownerId, month, bills) {
   return out;
 }
 
+// A bill's cost spread over a month. Targets carry forward, so an annual bill
+// has to be suggested as its monthly share -- suggesting the full amount in the
+// month it lands would leave that figure standing as the target forever.
+// One-time bills are excluded: they're not an ongoing commitment to budget for.
+const MONTHLY_FACTOR = {
+  weekly: 52 / 12,
+  biweekly: 26 / 12,
+  monthly: 1,
+  quarterly: 1 / 3,
+  yearly: 1 / 12
+};
+
+function monthlyEquivalent(bill) {
+  const factor = MONTHLY_FACTOR[bill.frequency];
+  if (!factor) return 0; // one-time, or an unrecognised frequency
+  return (Number(bill.amount) || 0) * factor;
+}
+
+// Proposes a starting target for every category that actually has bills in it,
+// sized to what those bills cost per month. Categories already budgeted are
+// left alone so this never overwrites a figure the user chose themselves.
+function suggestBudgetTargets(ownerId, month) {
+  const targetMonth = isMonthKey(month) ? month : currentMonthKey();
+  const targetRows = listBudgetTargetRows(ownerId);
+  const byCategory = new Map();
+
+  listBills(ownerId).forEach((b) => {
+    const category = b.category || "Other";
+    const perMonth = monthlyEquivalent(b);
+    if (!perMonth) return;
+    const entry = byCategory.get(category) || { category, amount: 0, billCount: 0 };
+    entry.amount += perMonth;
+    entry.billCount += 1;
+    byCategory.set(category, entry);
+  });
+
+  return Array.from(byCategory.values())
+    .filter((e) => e.amount > 0 && !targetInForce(targetRows, e.category, targetMonth))
+    .map((e) => ({ category: e.category, amount: Math.round(e.amount * 100) / 100, billCount: e.billCount }))
+    .sort((a, b) => a.category.localeCompare(b.category));
+}
+
+async function applySuggestedBudgetTargets(ownerId, month) {
+  const targetMonth = isMonthKey(month) ? month : currentMonthKey();
+  const suggestions = suggestBudgetTargets(ownerId, targetMonth);
+  for (const s of suggestions) {
+    await setBudgetTarget(ownerId, targetMonth, s.category, s.amount);
+  }
+  return { created: suggestions.length, categories: suggestions.map((s) => s.category) };
+}
+
 function getBudgetMonth(ownerId, month) {
   const targetMonth = isMonthKey(month) ? month : currentMonthKey();
   const user = getUser(ownerId) || {};
@@ -1252,8 +1303,13 @@ function getBudgetMonth(ownerId, month) {
     if (m === targetMonth) detail = rows;
   }
 
-  // Drop categories that have never had a target, spend, or carried balance.
-  detail = detail.filter((r) => r.target || r.spent || r.carriedIn);
+  // Categories with something due this month stay visible even when nothing has
+  // been budgeted for them yet -- an unbudgeted commitment is exactly the thing
+  // you want to notice, not something to hide.
+  const dueThisMonth = new Set(
+    bills.filter((b) => !b.paid && monthOf(b.dueDate) === targetMonth).map((b) => b.category || "Other")
+  );
+  detail = detail.filter((r) => r.target || r.spent || r.carriedIn || dueThisMonth.has(r.category));
   detail.sort((a, b) => a.category.localeCompare(b.category));
 
   const billsDue = bills
@@ -1276,6 +1332,8 @@ function getBudgetMonth(ownerId, month) {
     // category's target, so they are deliberately not subtracted again here.
     unallocated: income != null ? income - totals.target : null,
     categories: detail,
+    // Categories that have bills but no target yet, with a proposed amount.
+    suggestions: suggestBudgetTargets(ownerId, targetMonth),
     expenses: listExpenses(ownerId, targetMonth),
     billPayments: bills.flatMap((b) => (b.paidDates || [])
       .filter((p) => monthOf(p.date) === targetMonth)
@@ -1473,6 +1531,7 @@ module.exports = {
   listTrash, restoreFromTrash, deleteFromTrashPermanently, emptyTrash, purgeExpiredTrash,
   analyzeImport, importData,
   getBudgetMonth, setBudgetTarget, listExpenses, createExpense, deleteExpense,
+  suggestBudgetTargets, applySuggestedBudgetTargets,
   getAllBills, markBillReminderSent,
   listAllowlist, addAllowlistEntry, removeAllowlistEntry,
   listBillsAccess, hasBillsAccess, grantBillsAccess, revokeBillsAccess
