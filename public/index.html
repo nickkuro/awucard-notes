@@ -254,6 +254,27 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   color: var(--accent-ink); font-weight: 600; font-size: 13px;
 }
 .new-note-btn:hover { filter: brightness(1.06); }
+/* Split "add" button: a context-aware primary action plus a caret that opens
+   the full menu. The caret and menu only appear when there's more than one
+   thing the user can add (i.e. they have Bills access). */
+.add-split { position: relative; display: flex; }
+.add-split-main { flex: 1; }
+.add-split.has-caret .add-split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.add-split-caret {
+  flex: 0 0 auto; width: 34px; padding: 9px 0;
+  border-top-left-radius: 0; border-bottom-left-radius: 0;
+  border-left: 1px solid rgba(0,0,0,0.18); font-size: 11px;
+}
+.add-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
+  background: var(--surface-hi); border: 1px solid var(--border); border-radius: 7px;
+  box-shadow: 0 6px 18px var(--shadow); overflow: hidden; z-index: 30;
+}
+.add-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 9px 12px; font-size: 13px; color: var(--ink-mid);
+}
+.add-menu button:hover { background: var(--surface); color: var(--ink); }
 
 .empty-list { padding: 28px 12px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; text-align: center; }
 
@@ -1387,7 +1408,14 @@ kbd {
     <div class="sidebar-bottom">
       <div class="user-row" id="userRow"></div>
       <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-        <button class="new-note-btn" id="newNoteBtn" style="flex: 1;">+ Add Note</button>
+        <div class="add-split" id="addSplit" style="flex: 1;">
+          <button class="new-note-btn add-split-main" id="addPrimaryBtn" data-add="note">+ Add Note</button>
+          <button class="new-note-btn add-split-caret hidden" id="addMenuToggle" aria-label="More add options" aria-haspopup="true">▾</button>
+          <div class="add-menu hidden" id="addMenu">
+            <button data-add="note">📝 Add note</button>
+            <button data-add="bill" id="addMenuBill" class="hidden">💳 Add bill</button>
+          </div>
+        </div>
         <button id="infoBtn" style="flex: 0 0 auto; padding: 9px 12px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); color: var(--ink-mid); font-size: 11px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.04em;">About</button>
       </div>
       <div style="padding-top: 8px; border-top: 1px solid var(--border); text-align: center; font-size: 11px; color: var(--ink-dim); font-family: 'IBM Plex Mono', monospace;">
@@ -1932,6 +1960,7 @@ kbd {
             <div class="cl-item new">"Start from your bills" sets up targets for every category that already has bills in it, so you're not filling in an empty budget by hand. Yearly and quarterly bills are spread across the months rather than landing all at once, and a category you've already budgeted is left alone.</div>
             <div class="cl-item new">Categories with a bill due this month now show up even before you've budgeted for them, so an unbudgeted commitment isn't hidden.</div>
             <div class="cl-item new">Added a "?" button to Bills and Budget that explains how each one works in plain language, with a worked example. Handy if you've handed someone a Bills account and don't fancy explaining rollover yourself.</div>
+            <div class="cl-item new">The "Add" button in the sidebar now matches whichever tab you're on (a note on Notes, a bill on Bills or Budget), with a small ▾ menu to pick the other one. Previously it always said "Add Note" even on the Bills and Budget screens.</div>
             <div class="cl-item fix">Bills now record what each payment actually cost at the time. Previously "Paid in recent months" valued old payments at the bill's current amount, so raising a bill's price quietly changed your spending history.</div>
           </div>
         </div>

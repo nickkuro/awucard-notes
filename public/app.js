@@ -116,6 +116,7 @@ function boot() {
       document.getElementById("tabBills").classList.remove("hidden");
       document.getElementById("tabBudget").classList.remove("hidden");
     }
+    refreshAddButton();
     var billCatSection=document.getElementById("billCategoriesSection");
     if(billCatSection) billCatSection.classList.toggle("hidden", !state.canAccessBills);
     document.getElementById("settingsAdminGroup").classList.toggle("hidden", !state.isAdmin);
@@ -1756,7 +1757,49 @@ document.getElementById("settingsLogoutBtn").addEventListener("click",function()
   });
 });
 
-document.getElementById("newNoteBtn").addEventListener("click",createNote);
+// ---------- Split "add" button ----------
+// Primary action follows the current view; the caret menu offers the rest.
+function primaryAddKind() {
+  if((state.view==="bills"||state.view==="budget") && state.canAccessBills) return "bill";
+  return "note";
+}
+
+function doAdd(kind) {
+  if(kind==="bill" && state.canAccessBills) addBill();
+  else createNote();
+}
+
+function closeAddMenu() {
+  document.getElementById("addMenu").classList.add("hidden");
+}
+
+// Reflects the current view + access into the button label, menu and caret.
+function refreshAddButton() {
+  var kind = primaryAddKind();
+  var primary = document.getElementById("addPrimaryBtn");
+  primary.textContent = kind==="bill" ? "+ Add Bill" : "+ Add Note";
+  primary.setAttribute("data-add", kind);
+  // The caret and menu only earn their place when there's a second option.
+  var multi = !!state.canAccessBills;
+  document.getElementById("addSplit").classList.toggle("has-caret", multi);
+  document.getElementById("addMenuToggle").classList.toggle("hidden", !multi);
+  document.getElementById("addMenuBill").classList.toggle("hidden", !state.canAccessBills);
+  if(!multi) closeAddMenu();
+}
+
+document.getElementById("addPrimaryBtn").addEventListener("click",function(){
+  doAdd(this.getAttribute("data-add"));
+});
+document.getElementById("addMenuToggle").addEventListener("click",function(e){
+  e.stopPropagation();
+  document.getElementById("addMenu").classList.toggle("hidden");
+});
+document.querySelectorAll("#addMenu [data-add]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    closeAddMenu();
+    doAdd(btn.getAttribute("data-add"));
+  });
+});
 document.getElementById("searchInput").addEventListener("input",function(e){
   state.search=e.target.value; renderTagRow(); renderList();
 });
@@ -1981,6 +2024,8 @@ document.addEventListener("click",function(e){
   if(charDropdownOpen&&!dropdown.contains(e.target)&&!btn.contains(e.target)){
     closeCharDropdown();
   }
+  var addSplit=document.getElementById("addSplit");
+  if(addSplit&&!addSplit.contains(e.target)) closeAddMenu();
 });
 
 // global keyboard shortcuts
@@ -1988,6 +2033,7 @@ document.addEventListener("keydown",function(e){
   // Escape — close any open overlay or dropdown
   if(e.key==="Escape"){
     closeCharDropdown();
+    closeAddMenu();
     document.getElementById("settingsOverlay").classList.add("hidden");
     document.getElementById("confirmOverlay").classList.add("hidden");
     document.getElementById("charEditOverlay").classList.add("hidden");
@@ -2057,6 +2103,7 @@ function dateFromKey(k) { return new Date(k+"T00:00:00"); }
 
 function switchView(view) {
   state.view = view;
+  refreshAddButton();
   var notesContent = document.getElementById("notesViewContent");
   var billsContent = document.getElementById("billsViewContent");
   var calSide = document.getElementById("calSidePanel");
@@ -3089,17 +3136,26 @@ function renderBillEditor() {
   });
 }
 
-document.getElementById("addBillBtn").addEventListener("click",function(){
-  api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:(state.user&&state.user.defaultCurrency)||"USD"})})
-    .then(function(bill){
-      state.bills.unshift(bill);
-      state.selectedBillId=bill.id;
-      document.getElementById("app").classList.add("show-bills");
-      renderBillList();
-      var el=document.getElementById("billNameInput");
-      if(el){el.select();el.focus();}
-    });
-});
+function addBill() {
+  // If we're not already on Bills, switch there first so the new bill's editor
+  // has somewhere to render.
+  var wasBills = state.view === "bills";
+  var finish = function(bill){
+    state.bills.unshift(bill);
+    state.selectedBillId=bill.id;
+    document.getElementById("app").classList.add("show-bills");
+    renderBillList();
+    var el=document.getElementById("billNameInput");
+    if(el){el.select();el.focus();}
+  };
+  var create = function(){
+    api("/api/bills",{method:"POST",body:JSON.stringify({name:"New bill",frequency:"monthly",currency:(state.user&&state.user.defaultCurrency)||"USD"})}).then(finish);
+  };
+  if(wasBills) create();
+  else { switchView("bills"); create(); }
+}
+
+document.getElementById("addBillBtn").addEventListener("click", addBill);
 
 boot();
 })();
