@@ -114,6 +114,7 @@ function boot() {
     state.canAccessBills=user.canAccessBills===true;
     if(state.canAccessBills){
       document.getElementById("tabBills").classList.remove("hidden");
+      document.getElementById("tabBudget").classList.remove("hidden");
     }
     var billCatSection=document.getElementById("billCategoriesSection");
     if(billCatSection) billCatSection.classList.toggle("hidden", !state.canAccessBills);
@@ -1003,6 +1004,280 @@ document.getElementById("discordDigestSave").addEventListener("click",function()
   });
 });
 
+// ---------- Budget ----------
+var budgetMonth = null;   // 'YYYY-MM' currently being viewed
+var budgetData = null;
+
+function thisMonthKey() {
+  var d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+}
+
+function shiftMonthKey(key, delta) {
+  var parts = key.split("-");
+  var d = new Date(Number(parts[0]), Number(parts[1])-1+delta, 1);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+}
+
+function monthLabel(key) {
+  var parts = key.split("-");
+  return new Date(Number(parts[0]), Number(parts[1])-1, 1)
+    .toLocaleDateString(undefined,{month:"long",year:"numeric"});
+}
+
+function money(n, currency) {
+  var sign = n < 0 ? "−" : "";
+  return sign + (currency ? currency+" " : "") + "$" + Math.abs(Number(n)||0).toFixed(2);
+}
+
+function loadBudget(month) {
+  budgetMonth = month || budgetMonth || thisMonthKey();
+  return api("/api/budget/"+budgetMonth).then(function(res){
+    budgetData = res;
+    renderBudget();
+    renderBudgetMonthList();
+  });
+}
+
+function renderBudgetMonthList() {
+  var list = document.getElementById("budgetMonthList");
+  if(!list || !budgetData) return;
+  // Show the last 12 months up to whichever is later: today or the viewed month.
+  var anchor = budgetMonth > thisMonthKey() ? budgetMonth : thisMonthKey();
+  var months = [];
+  for(var i=0;i<12;i++) months.push(shiftMonthKey(anchor, -i));
+  list.innerHTML = months.map(function(m){
+    return '<button class="budget-month-item'+(m===budgetMonth?" active":"")+'" data-month="'+m+'">'+
+      '<span>'+esc(monthLabel(m))+'</span>'+
+      (m===thisMonthKey()?'<span class="budget-month-item-amount">now</span>':'')+
+    '</button>';
+  }).join("");
+  list.querySelectorAll("[data-month]").forEach(function(btn){
+    btn.addEventListener("click",function(){ loadBudget(btn.getAttribute("data-month")); });
+  });
+}
+
+function budgetCategoryRow(c, currency) {
+  var totalAvailable = c.target + c.carriedIn;
+  var over = c.spent > totalAvailable;
+  var denom = totalAvailable > 0 ? totalAvailable : c.spent;
+  var billPct = denom > 0 ? Math.min(100, (c.spentBills/denom)*100) : 0;
+  var loggedPct = denom > 0 ? Math.min(100-billPct, (c.spentLogged/denom)*100) : 0;
+
+  var availClass = c.available > 0 ? "pos" : (c.available < 0 ? "neg" : "zero");
+  var availLabel = c.available < 0 ? "over" : "left";
+
+  var carriedHtml = "";
+  if(c.carriedIn) {
+    carriedHtml = ' <span class="budget-carried'+(c.carriedIn<0?" neg":"")+'">'+
+      (c.carriedIn<0?"− ":"+ ")+"$"+Math.abs(c.carriedIn).toFixed(2)+" carried in</span>";
+  }
+
+  var spentDetail;
+  if(c.spentBills && c.spentLogged){
+    spentDetail = money(c.spent)+" spent · $"+c.spentBills.toFixed(2)+" bills, $"+c.spentLogged.toFixed(2)+" logged";
+  } else if(c.spentBills){
+    spentDetail = money(c.spent)+" spent · all from bills";
+  } else {
+    spentDetail = money(c.spent)+" spent";
+  }
+
+  return '<div class="budget-cat">'+
+    '<div class="budget-cat-top">'+
+      '<span class="budget-cat-name">'+esc(c.category)+'</span>'+
+      '<span class="budget-cat-avail '+availClass+'">'+money(c.available)+
+        '<span class="budget-cat-avail-label">'+availLabel+'</span></span>'+
+    '</div>'+
+    '<div class="budget-bar'+(over?" over":"")+'">'+
+      (billPct>0?'<span class="budget-bar-bills" style="width:'+billPct+'%"></span>':'')+
+      (loggedPct>0?'<span class="budget-bar-logged" style="width:'+loggedPct+'%"></span>':'')+
+    '</div>'+
+    '<div class="budget-cat-meta">'+
+      '<span><button class="budget-target-btn" data-edit-target="'+esc(c.category)+'">$'+c.target.toFixed(2)+' target</button>'+carriedHtml+'</span>'+
+      '<span>'+esc(spentDetail)+'</span>'+
+    '</div>'+
+  '</div>';
+}
+
+function renderBudget() {
+  var el = document.getElementById("budgetScroll");
+  if(!el || !budgetData) return;
+  var d = budgetData;
+  var cur = d.currency;
+
+  var catOptions = getBillCategories().map(function(c){
+    return '<option value="'+esc(c)+'">'+esc(c)+'</option>';
+  }).join("");
+
+  var overspent = d.categories.filter(function(c){ return c.available < 0; });
+  var noteHtml;
+  if(d.income == null){
+    noteHtml = 'Set an estimated monthly income on the Bills dashboard to see what\'s unallocated.';
+  } else if(overspent.length){
+    noteHtml = '<span class="bad">'+overspent.length+' categor'+(overspent.length===1?"y is":"ies are")+' overspent</span>, carrying into '+esc(monthLabel(shiftMonthKey(d.month,1)))+'.';
+  } else {
+    noteHtml = '<span class="good">Nothing is overspent this month.</span>';
+  }
+
+  var catsHtml = d.categories.length
+    ? d.categories.map(function(c){ return budgetCategoryRow(c, cur); }).join("")
+    : '<div class="budget-empty">No categories budgeted yet. Set a target below to start.</div>';
+
+  var activity = d.expenses.map(function(e){
+    return { date:e.spentOn, category:e.category, note:e.note, amount:e.amount, id:e.id, isBill:false };
+  }).concat(d.billPayments.map(function(p){
+    return { date:p.date, category:p.category, note:p.name, amount:p.amount, id:p.billId, isBill:true };
+  })).sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+
+  var activityTotal = activity.reduce(function(s,a){ return s+a.amount; },0);
+  var activityHtml = activity.length ? activity.map(function(a){
+    return '<div class="budget-exp">'+
+      '<span class="budget-exp-date">'+esc(formatDueDate(a.date))+'</span>'+
+      '<span class="budget-exp-cat">'+esc(a.category)+'</span>'+
+      '<span class="budget-exp-note">'+esc(a.note||"")+(a.isBill?' <span class="budget-exp-bill">· BILL</span>':'')+'</span>'+
+      '<span class="budget-exp-amount">'+money(a.amount)+'</span>'+
+      (a.isBill
+        ? '<button class="budget-exp-del" style="opacity:0.25;cursor:not-allowed;" title="Comes from Bills" disabled>×</button>'
+        : '<button class="budget-exp-del" data-del-expense="'+a.id+'" title="Delete">×</button>')+
+    '</div>';
+  }).join("") : '<div class="budget-empty">Nothing recorded this month yet.</div>';
+
+  el.innerHTML =
+    '<div class="budget-inner">'+
+      '<div class="budget-month-nav">'+
+        '<button class="budget-nav-btn" id="budgetPrev" aria-label="Previous month">‹</button>'+
+        '<div class="budget-month-label">'+esc(monthLabel(d.month))+'</div>'+
+        '<button class="budget-nav-btn" id="budgetNext" aria-label="Next month">›</button>'+
+        (d.month!==thisMonthKey()?'<button class="budget-today-btn" id="budgetToday">Today</button>':'')+
+      '</div>'+
+
+      '<div class="budget-stats">'+
+        '<div class="budget-stat"><div class="budget-stat-value">'+(d.income!=null?money(d.income):"—")+'</div><div class="budget-stat-label">Income</div></div>'+
+        '<div class="budget-stat budgeted"><div class="budget-stat-value">'+money(d.totals.target)+'</div><div class="budget-stat-label">Budgeted</div></div>'+
+        '<div class="budget-stat spent"><div class="budget-stat-value">'+money(d.totals.spent)+'</div><div class="budget-stat-label">Spent</div></div>'+
+        '<div class="budget-stat unallocated'+(d.unallocated!=null&&d.unallocated<0?" negative":"")+'"><div class="budget-stat-value">'+(d.unallocated!=null?money(d.unallocated):"—")+'</div><div class="budget-stat-label">Unallocated</div></div>'+
+      '</div>'+
+      '<div class="budget-note">'+noteHtml+'</div>'+
+
+      '<div class="budget-section">'+
+        '<div class="budget-heading"><span>Categories</span><span class="budget-heading-plain">'+esc(monthLabel(d.month))+'</span></div>'+
+        '<div class="budget-legend">'+
+          '<span class="budget-legend-key"><span class="budget-legend-dot bills"></span> from bills (automatic)</span>'+
+          '<span class="budget-legend-key"><span class="budget-legend-dot logged"></span> logged by you</span>'+
+        '</div>'+
+        catsHtml+
+      '</div>'+
+
+      '<div class="budget-section">'+
+        '<div class="budget-heading">Log an expense</div>'+
+        '<div class="budget-quickadd">'+
+          '<input class="budget-qa-amount" id="budgetQaAmount" placeholder="0.00" inputmode="decimal" />'+
+          '<select class="budget-qa-cat" id="budgetQaCat">'+catOptions+'</select>'+
+          '<input class="budget-qa-date" id="budgetQaDate" type="date" value="'+esc(defaultExpenseDate(d.month))+'" />'+
+          '<input class="budget-qa-note" id="budgetQaNote" placeholder="Note (optional)" />'+
+          '<button class="budget-qa-add" id="budgetQaAdd">Add</button>'+
+        '</div>'+
+      '</div>'+
+
+      '<div class="budget-section">'+
+        '<div class="budget-heading"><span>This month</span><span class="budget-heading-plain">'+money(activityTotal)+' total</span></div>'+
+        '<div class="budget-exp-wrap">'+activityHtml+'</div>'+
+      '</div>'+
+    '</div>';
+
+  wireBudgetEvents();
+}
+
+// When looking at a past/future month, default new expenses into that month
+// rather than silently filing them under today.
+function defaultExpenseDate(month) {
+  var today = new Date();
+  var todayKey = thisMonthKey();
+  if(month === todayKey){
+    return today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+  }
+  return month+"-01";
+}
+
+function wireBudgetEvents() {
+  var prev = document.getElementById("budgetPrev");
+  if(prev) prev.addEventListener("click",function(){ loadBudget(shiftMonthKey(budgetMonth,-1)); });
+  var next = document.getElementById("budgetNext");
+  if(next) next.addEventListener("click",function(){ loadBudget(shiftMonthKey(budgetMonth,1)); });
+  var today = document.getElementById("budgetToday");
+  if(today) today.addEventListener("click",function(){ loadBudget(thisMonthKey()); });
+
+  document.querySelectorAll("[data-edit-target]").forEach(function(btn){
+    btn.addEventListener("click",function(){ beginTargetEdit(btn); });
+  });
+
+  document.querySelectorAll("[data-del-expense]").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      api("/api/budget/expenses/"+btn.getAttribute("data-del-expense"),{method:"DELETE"}).then(function(){
+        loadBudget();
+        showToast("Expense removed");
+      });
+    });
+  });
+
+  var addBtn = document.getElementById("budgetQaAdd");
+  if(addBtn) addBtn.addEventListener("click", submitExpense);
+  var amountInput = document.getElementById("budgetQaAmount");
+  if(amountInput) amountInput.addEventListener("keydown",function(e){ if(e.key==="Enter") submitExpense(); });
+  var noteInput = document.getElementById("budgetQaNote");
+  if(noteInput) noteInput.addEventListener("keydown",function(e){ if(e.key==="Enter") submitExpense(); });
+}
+
+function beginTargetEdit(btn) {
+  var category = btn.getAttribute("data-edit-target");
+  var current = budgetData.categories.find(function(c){ return c.category===category; });
+  var input = document.createElement("input");
+  input.className = "budget-target-input";
+  input.value = current ? current.target.toFixed(2) : "0.00";
+  input.setAttribute("inputmode","decimal");
+  btn.replaceWith(input);
+  input.focus();
+  input.select();
+
+  var done = false;
+  function commit(save) {
+    if(done) return;
+    done = true;
+    if(!save){ renderBudget(); return; }
+    var amount = parseFloat(input.value);
+    if(!isFinite(amount) || amount < 0){ showToast("Enter a positive amount"); renderBudget(); return; }
+    api("/api/budget/target",{method:"PUT",body:JSON.stringify({month:budgetMonth, category:category, amount:amount})})
+      .then(function(){ loadBudget(); })
+      .catch(function(){ showToast("Couldn't save that target"); renderBudget(); });
+  }
+  input.addEventListener("keydown",function(e){
+    if(e.key==="Enter") commit(true);
+    else if(e.key==="Escape") commit(false);
+  });
+  input.addEventListener("blur",function(){ commit(true); });
+}
+
+function submitExpense() {
+  var amountEl = document.getElementById("budgetQaAmount");
+  var amount = parseFloat(amountEl.value);
+  if(!isFinite(amount) || amount <= 0){ showToast("Enter an amount"); amountEl.focus(); return; }
+  api("/api/budget/expenses",{method:"POST",body:JSON.stringify({
+    amount: amount,
+    category: document.getElementById("budgetQaCat").value,
+    spentOn: document.getElementById("budgetQaDate").value,
+    note: document.getElementById("budgetQaNote").value,
+    currency: budgetData ? budgetData.currency : "USD"
+  })}).then(function(){
+    return loadBudget();
+  }).then(function(){
+    // Keep the entry row hot so several in a row stay quick.
+    var next = document.getElementById("budgetQaAmount");
+    if(next) next.focus();
+  }).catch(function(){
+    showToast("Couldn't save that expense");
+  });
+}
+
 // ---------- Import ----------
 var pendingImport = null; // {data, duplicates}
 
@@ -1686,6 +1961,8 @@ function switchView(view) {
   var editor = document.getElementById("editor");
   var calMain = document.getElementById("calMain");
   var billMain = document.getElementById("billMain");
+  var budgetContent = document.getElementById("budgetViewContent");
+  var budgetMain = document.getElementById("budgetMain");
 
   document.querySelectorAll(".view-tab").forEach(function(t){
     t.classList.toggle("active", t.getAttribute("data-view")===view);
@@ -1693,15 +1970,25 @@ function switchView(view) {
 
   notesContent.style.display = "none";
   billsContent.style.display = "none";
+  budgetContent.style.display = "none";
   calSide.classList.add("hidden");
   editor.classList.add("hidden");
   calMain.classList.add("hidden");
   billMain.classList.add("hidden");
+  budgetMain.classList.add("hidden");
 
-  if(view === "calendar") {
+  if(view === "budget") {
+    document.getElementById("app").classList.remove("show-calendar");
+    document.getElementById("app").classList.remove("show-bills");
+    document.getElementById("app").classList.add("show-budget");
+    budgetContent.style.display = "flex";
+    budgetMain.classList.remove("hidden");
+    loadBudget();
+  } else if(view === "calendar") {
     calSide.classList.remove("hidden");
     calMain.classList.remove("hidden");
     document.getElementById("app").classList.remove("show-bills");
+    document.getElementById("app").classList.remove("show-budget");
     document.getElementById("app").classList.add("show-calendar");
     var fetches = [api("/api/notes?characterId=__all__"), api("/api/reminders")];
     if(state.canAccessBills) fetches.push(api("/api/bills"));
@@ -1715,6 +2002,7 @@ function switchView(view) {
     });
   } else if(view === "bills") {
     document.getElementById("app").classList.remove("show-calendar");
+    document.getElementById("app").classList.remove("show-budget");
     document.getElementById("app").classList.add("show-bills");
     billsContent.style.display = "flex";
     billMain.classList.remove("hidden");
@@ -1725,6 +2013,7 @@ function switchView(view) {
   } else {
     document.getElementById("app").classList.remove("show-calendar");
     document.getElementById("app").classList.remove("show-bills");
+    document.getElementById("app").classList.remove("show-budget");
     // Must be "flex", not "" -- notesViewContent's flex layout is what gives
     // the note list its bounded height + scroll. Clearing to "" falls back to
     // display:block (no stylesheet rule sets it), which lets the list grow to
@@ -2004,6 +2293,10 @@ document.getElementById("calBackBtn").addEventListener("click", function(){
 
 document.getElementById("billMainBackBtn").addEventListener("click", function(){
   document.getElementById("app").classList.remove("show-bills");
+});
+
+document.getElementById("budgetMainBackBtn").addEventListener("click", function(){
+  document.getElementById("app").classList.remove("show-budget");
 });
 
 document.getElementById("calPrev").addEventListener("click", function(){
@@ -2322,8 +2615,10 @@ function buildPaymentHistory(bills, monthsBack) {
 
   bills.forEach(function(b){
     (b.paidDates||[]).forEach(function(pd){
-      var mk = pd.slice(0,7);
-      if(totals[mk]) totals[mk][b.currency] = (totals[mk][b.currency]||0) + Number(b.amount||0);
+      var mk = String(pd.date||"").slice(0,7);
+      // Uses the amount recorded at payment time, so editing a bill's amount
+      // no longer retroactively rewrites what past months cost.
+      if(totals[mk]) totals[mk][b.currency] = (totals[mk][b.currency]||0) + Number(pd.amount||0);
     });
   });
 
@@ -2561,7 +2856,7 @@ function renderBillEditor() {
     ? '<button class="bill-action-btn unpay" id="billUnpayBtn">↩ Mark unpaid</button>'
     : '<button class="bill-action-btn pay-now" id="billPayBtn">✓ Mark as paid</button>';
   var historyHtml = bill.paidDates&&bill.paidDates.length
-    ? bill.paidDates.map(function(d){return '<div class="bill-history-item"><span class="bill-history-dot"></span>'+formatDueDate(d)+'</div>';}).join("")
+    ? bill.paidDates.map(function(p){return '<div class="bill-history-item"><span class="bill-history-dot"></span>'+formatDueDate(p.date)+'<span style="margin-left:auto;font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--ink-dim);">'+esc(bill.currency)+' $'+Number(p.amount||0).toFixed(2)+'</span></div>';}).join("")
     : '<div class="bill-history-empty">No payments recorded yet.</div>';
 
   editorEl.innerHTML =

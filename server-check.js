@@ -21,6 +21,7 @@ process.env.DISCORD_CLIENT_ID = "test-client";
 process.env.DISCORD_CLIENT_SECRET = "test-secret";
 process.env.DISCORD_REDIRECT_URI = "http://localhost/auth/discord/callback";
 process.env.SESSION_SECRET = "test-session-secret";
+process.env.LEDGER_DISABLE_RATE_LIMIT = "1"; // many logins in quick succession
 delete process.env.NODE_ENV; // keep cookies non-secure so http works
 
 const store = require("./store");
@@ -153,6 +154,58 @@ test("import rejects unauthenticated callers and junk payloads", async () => {
   const cookie = await loginAs("alice_importjunk", "correcthorsebattery");
   assert.equal((await req("POST", "/api/import", { cookie, body: { data: "nonsense" } })).status, 400);
   assert.equal((await req("POST", "/api/import/preview", { cookie, body: {} })).status, 400);
+});
+
+// Budget routes run against the fresh throwaway database this suite creates,
+// so they also guard against a column being added only to the migration path
+// and not to the schema new databases are built from.
+test("budget rejects callers without bills access", async () => {
+  assert.equal((await req("GET", "/api/budget/2026-07")).status, 401);
+  const cookie = await loginAs("alice_nobills", "correcthorsebattery");
+  assert.equal((await req("GET", "/api/budget/2026-07", { cookie })).status, 403);
+  assert.equal((await req("POST", "/api/budget/expenses", { cookie, body: { amount: 5, category: "Food" } })).status, 403);
+});
+
+test("budget tracks targets, expenses and rollover over the API", async () => {
+  await store.createLocalAccount("alice_budget", "correcthorsebattery");
+  const account = store.listLocalAccounts().find((a) => a.username === "alice_budget");
+  await store.grantBillsAccess(account.id);
+  const login = await req("POST", "/auth/local-login", { body: { username: "alice_budget", password: "correcthorsebattery" } });
+  const cookie = login.cookie;
+
+  assert.equal((await req("PUT", "/api/budget/target", { cookie, body: { month: "2026-06", category: "Food", amount: 400 } })).status, 200);
+  assert.equal((await req("POST", "/api/budget/expenses", { cookie, body: { amount: 300, category: "Food", spentOn: "2026-06-10" } })).status, 201);
+
+  const june = await req("GET", "/api/budget/2026-06", { cookie });
+  const juneFood = june.json.categories.find((c) => c.category === "Food");
+  assert.equal(juneFood.available, 100, "400 budgeted - 300 spent");
+
+  const july = await req("GET", "/api/budget/2026-07", { cookie });
+  const julyFood = july.json.categories.find((c) => c.category === "Food");
+  assert.equal(julyFood.carriedIn, 100, "June's leftover carries into July");
+
+  // Changing July's target must not rewrite June.
+  await req("PUT", "/api/budget/target", { cookie, body: { month: "2026-07", category: "Food", amount: 550 } });
+  const juneAgain = await req("GET", "/api/budget/2026-06", { cookie });
+  assert.equal(juneAgain.json.categories.find((c) => c.category === "Food").target, 400, "past months keep their original target");
+
+  // Bad input is rejected rather than corrupting the ledger.
+  assert.equal((await req("PUT", "/api/budget/target", { cookie, body: { month: "nope", category: "Food", amount: 5 } })).status, 400);
+  assert.equal((await req("POST", "/api/budget/expenses", { cookie, body: { amount: -5, category: "Food" } })).status, 400);
+});
+
+test("a user cannot delete another user's expense", async () => {
+  await store.createLocalAccount("bob_budget", "correcthorsebattery");
+  const bob = store.listLocalAccounts().find((a) => a.username === "bob_budget");
+  await store.grantBillsAccess(bob.id);
+  const bobLogin = await req("POST", "/auth/local-login", { body: { username: "bob_budget", password: "correcthorsebattery" } });
+
+  const alice = store.listLocalAccounts().find((a) => a.username === "alice_budget");
+  const aliceExpense = store.listExpenses(alice.id, "2026-06")[0];
+  assert.ok(aliceExpense, "Alice should have an expense to target");
+
+  assert.equal((await req("DELETE", "/api/budget/expenses/" + aliceExpense.id, { cookie: bobLogin.cookie })).status, 404);
+  assert.equal(store.listExpenses(alice.id, "2026-06").length, 1, "Alice's expense should survive");
 });
 
 test("deleting a note moves it to the trash and it can be restored", async () => {

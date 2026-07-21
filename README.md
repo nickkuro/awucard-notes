@@ -56,6 +56,13 @@ Each user signs in with Discord and gets their own private notes space. Data liv
 - Per-user default currency (Settings → Account) pre-fills new bills and the income estimate instead of always defaulting to USD; changing it can also relabel your existing bills to match
 - Customizable bill categories (Settings → Account): add or remove categories instead of being stuck with a fixed list
 
+**Budget** *(same access as Bills)*
+- Monthly envelope budgeting built on the categories you already use for bills
+- Bills you've paid count toward their category automatically, so only variable spending gets logged by hand
+- Rollover: underspend carries into next month, overspend carries as a shortfall
+- Targets are versioned by month, so changing this month's budget never rewrites past months
+- Per-category bars split what came from bills vs. what you logged, and a month picker to review previous months
+
 **Discord integration**
 - Discord OAuth2 login, with an optional allow-list of approved user IDs
 - Admin-only "Manage access" panel to add or remove allowed Discord accounts, and grant/revoke individual Bills access, all from the UI with no redeploy needed

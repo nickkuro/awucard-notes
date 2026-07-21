@@ -560,6 +560,118 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .trash-btn:hover { color: var(--ink); border-color: var(--accent); }
 .trash-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
 .trash-empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 16px 0; }
+
+/* ---- Budget ---- */
+.budget-main { flex: 1; display: flex; flex-direction: column; height: 100vh; height: 100dvh; height: calc(var(--app-vh) * 100); min-width: 0; }
+.budget-scroll { flex: 1; overflow-y: auto; padding: 30px 30px 40px; }
+.budget-inner { max-width: 620px; margin: 0 auto; }
+
+.budget-side-heading {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim); padding: 12px 16px 6px;
+}
+.budget-month-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+.budget-month-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid transparent; color: var(--ink-mid); font-size: 13px; margin-bottom: 3px;
+}
+.budget-month-item:hover { background: var(--surface-hi); color: var(--ink); }
+.budget-month-item.active { border-color: var(--accent); background: rgba(232,163,61,0.08); color: var(--ink); }
+.budget-month-item-amount { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); }
+
+.budget-month-nav { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 24px; }
+.budget-nav-btn {
+  color: var(--ink-mid); width: 30px; height: 30px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface); font-size: 15px; line-height: 1;
+}
+.budget-nav-btn:hover { color: var(--ink); border-color: var(--accent); }
+.budget-month-label { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; min-width: 150px; text-align: center; }
+.budget-today-btn {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-dim);
+  border: 1px solid var(--border); background: var(--surface); padding: 4px 9px; border-radius: 5px;
+}
+.budget-today-btn:hover { color: var(--ink-mid); border-color: var(--ink-dim); }
+
+.budget-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.budget-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 10px; text-align: center; }
+.budget-stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; }
+.budget-stat-label { font-size: 10.5px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+.budget-stat.budgeted .budget-stat-value { color: var(--teal); }
+.budget-stat.spent .budget-stat-value { color: var(--amber); }
+.budget-stat.unallocated .budget-stat-value { color: var(--green); }
+.budget-stat.unallocated.negative .budget-stat-value { color: var(--danger); }
+.budget-note { font-size: 12.5px; color: var(--ink-dim); text-align: center; margin-bottom: 26px; }
+.budget-note .good { color: var(--green); }
+.budget-note .bad { color: var(--danger); }
+
+.budget-section { margin-bottom: 26px; }
+.budget-heading {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim); margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.budget-heading-plain { letter-spacing: 0; text-transform: none; font-size: 11px; }
+
+.budget-legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink-dim); margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.budget-legend-key { display: flex; align-items: center; gap: 5px; }
+.budget-legend-dot { width: 9px; height: 9px; border-radius: 2px; }
+.budget-legend-dot.bills { background: var(--amber); }
+.budget-legend-dot.logged { background: var(--teal); }
+
+.budget-cat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+.budget-cat:hover { border-color: var(--accent); }
+.budget-cat-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.budget-cat-name { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budget-cat-avail { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; flex-shrink: 0; }
+.budget-cat-avail.pos { color: var(--green); }
+.budget-cat-avail.zero { color: var(--ink-mid); }
+.budget-cat-avail.neg { color: var(--danger); }
+.budget-cat-avail-label { font-size: 10px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.07em; margin-left: 5px; font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; }
+
+.budget-bar { height: 7px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; display: flex; margin-bottom: 6px; }
+.budget-bar-bills { background: var(--amber); height: 100%; }
+.budget-bar-logged { background: var(--teal); height: 100%; }
+.budget-bar.over .budget-bar-bills, .budget-bar.over .budget-bar-logged { background: var(--danger); }
+
+.budget-cat-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.budget-carried { color: var(--teal); }
+.budget-carried.neg { color: var(--danger); }
+.budget-target-btn { color: var(--ink-dim); border-bottom: 1px dashed var(--border); font-family: inherit; font-size: 11px; }
+.budget-target-btn:hover { color: var(--accent); border-color: var(--accent); }
+.budget-target-input {
+  width: 90px; background: var(--surface-hi); border: 1px solid var(--accent); border-radius: 4px;
+  padding: 2px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink);
+}
+
+.budget-quickadd { display: flex; gap: 7px; margin-bottom: 10px; flex-wrap: wrap; }
+.budget-quickadd input, .budget-quickadd select {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 9px; font-size: 13px; color: var(--ink); min-width: 0;
+}
+.budget-quickadd input:focus, .budget-quickadd select:focus { border-color: var(--accent); outline: none; }
+.budget-qa-amount { width: 92px; font-family: 'IBM Plex Mono', monospace; }
+.budget-qa-cat { width: 140px; }
+.budget-qa-date { width: 140px; font-family: 'IBM Plex Mono', monospace; }
+.budget-qa-note { flex: 1; min-width: 120px; }
+.budget-qa-add { background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 6px; }
+.budget-qa-add:hover { filter: brightness(1.08); }
+
+.budget-exp-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.budget-exp { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.budget-exp:last-child { border-bottom: none; }
+.budget-exp-date { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); width: 52px; flex-shrink: 0; }
+.budget-exp-cat {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border); color: var(--ink-dim);
+  flex-shrink: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.budget-exp-note { flex: 1; color: var(--ink-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budget-exp-amount { font-family: 'IBM Plex Mono', monospace; font-size: 13px; flex-shrink: 0; }
+.budget-exp-bill { color: var(--amber); font-size: 10px; letter-spacing: 0.04em; }
+.budget-exp-del { color: var(--ink-dim); font-size: 14px; flex-shrink: 0; padding: 0 2px; }
+.budget-exp-del:hover { color: var(--danger); }
+.budget-empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 24px 0; }
 .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .color-swatch {
   width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
@@ -1040,10 +1152,11 @@ kbd {
 .due-date-clear:hover { color: var(--danger); }
 @media (max-width: 820px) {
   .app { position: relative; overflow: hidden; }
-  .sidebar, .editor, .cal-main, .bill-main { width: 100%; min-width: 100%; flex: 0 0 100%; }
-  .editor, .cal-main, .bill-main { position: absolute; top: 0; left: 100%; transition: left 0.2s ease; background: var(--bg); }
-  .app.show-editor .editor, .app.show-calendar .cal-main, .app.show-bills .bill-main { left: 0; }
-  .app.show-editor .sidebar, .app.show-calendar .sidebar, .app.show-bills .sidebar { display: none; }
+  .sidebar, .editor, .cal-main, .bill-main, .budget-main { width: 100%; min-width: 100%; flex: 0 0 100%; }
+  .editor, .cal-main, .bill-main, .budget-main { position: absolute; top: 0; left: 100%; transition: left 0.2s ease; background: var(--bg); }
+  .app.show-editor .editor, .app.show-calendar .cal-main, .app.show-bills .bill-main, .app.show-budget .budget-main { left: 0; }
+  .app.show-editor .sidebar, .app.show-calendar .sidebar, .app.show-bills .sidebar, .app.show-budget .sidebar { display: none; }
+  .budget-scroll { padding: 20px 16px 30px; }
   .back-btn { display: flex !important; }
   .editor-head { padding: 12px 16px 8px; }
   .editor-pane { padding: 14px 18px 24px; }
@@ -1146,6 +1259,16 @@ kbd {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         Bills
       </button>
+      <button class="view-tab hidden" id="tabBudget" data-view="budget">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
+        Budget
+      </button>
+    </div>
+
+    <!-- BUDGET SIDEBAR: month jump list -->
+    <div id="budgetViewContent" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="budget-side-heading">Months</div>
+      <div class="budget-month-list" id="budgetMonthList"></div>
     </div>
 
     <!-- NOTES VIEW CONTENT -->
@@ -1244,6 +1367,13 @@ kbd {
     </button>
     <div class="bill-dashboard" id="billPlaceholder"></div>
     <div class="bill-editor hidden" id="billEditor"></div>
+  </div>
+
+  <div class="budget-main hidden" id="budgetMain">
+    <button class="icon-btn back-btn bill-main-back" id="budgetMainBackBtn" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="budget-scroll" id="budgetScroll"></div>
   </div>
 
 <!-- REMINDER MODAL -->
@@ -1579,7 +1709,7 @@ kbd {
     <div class="info-panel" id="tab-about">
       <div class="info-section">
         <div class="info-logo">¶ LEDGER</div>
-        <p class="info-sub">Version 2.14. A private space for character notes, a calendar, and bill tracking, built with Discord login so your group can each have their own space.</p>
+        <p class="info-sub">Version 2.15. A private space for character notes, a calendar, and bill tracking, built with Discord login so your group can each have their own space.</p>
       </div>
       <div class="info-section">
         <div class="info-heading">How it works</div>
@@ -1642,6 +1772,10 @@ kbd {
         <div class="info-item">
           <div class="info-item-title">Bills</div>
           <div class="info-item-body">If you've been granted access, the Bills tab tracks recurring or one-time bills: amount, currency, due date, frequency, category, and a Low/Medium/High/Urgent priority (which also sets the bill's colour). Categories are yours to customize from Settings → Account, so add or remove them to match how you actually track spending. Mark a bill paid to log it and automatically roll a recurring bill to its next due date. The dashboard shows overdue/upcoming/paid counts, a 12-month forecast, a "How is this calculated?" breakdown, spend by category, and recent payment history. Bills also appear on the Calendar and can send Discord DM reminders ahead of the due date. Each account's bills are completely private, so nobody else can see them.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-item-title">Budget</div>
+          <div class="info-item-body">The Budget tab (same access as Bills) turns your categories into monthly envelopes. Give a category a target, then log what you spend against it. Anything already paid through Bills counts toward its category on its own, so the only thing you type by hand is variable spending like groceries or petrol. The bar on each category shows the split: amber is money that came from a bill, teal is what you logged.<br><br>Budgets roll over. Finish a month $60 under on Food and next month starts with $60 extra; go $30 over and next month starts $30 down, so the total stays truthful instead of resetting the damage. Changing a target only affects that month and later ones, so tweaking this month never rewrites your history. Use the month arrows (or the list in the sidebar) to look back at how a previous month actually went.</div>
         </div>
         <div class="info-item">
           <div class="info-item-title">Manage access (admin only)</div>
@@ -1714,6 +1848,15 @@ kbd {
 
     <div class="info-panel hidden" id="tab-changelog">
       <div class="changelog">
+        <div class="cl-entry">
+          <div class="cl-version">v2.15</div>
+          <div class="cl-items">
+            <div class="cl-item new">New Budget tab. Set a monthly target per category and log what you spend; anything you've already paid through Bills counts automatically, so you only type in the variable stuff like groceries.</div>
+            <div class="cl-item new">Budgets roll over. Underspend a category and the leftover carries into next month; overspend and the shortfall carries too, so the envelope stays honest.</div>
+            <div class="cl-item new">Changing a target only affects that month onward, so adjusting this month's budget never rewrites what past months were set to.</div>
+            <div class="cl-item fix">Bills now record what each payment actually cost at the time. Previously "Paid in recent months" valued old payments at the bill's current amount, so raising a bill's price quietly changed your spending history.</div>
+          </div>
+        </div>
         <div class="cl-entry">
           <div class="cl-version">v2.14</div>
           <div class="cl-items">

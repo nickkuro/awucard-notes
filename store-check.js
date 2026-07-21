@@ -369,6 +369,24 @@ async function checkTrashSoftDelete() {
   await store.deleteAllUserData(otherId);
 }
 
+async function checkPaymentAmountHistory() {
+  const ownerId = `store-check-payhist-${Date.now()}`;
+  await store.upsertUser({ id: ownerId, username: 'Payment Person', avatar: null });
+
+  const bill = await store.createBill(ownerId, { name: 'Rent', amount: 1000, dueDate: '2026-08-01', frequency: 'monthly' });
+  const afterPay = await store.markBillPaid(ownerId, bill.id);
+  assert.equal(afterPay.paidDates.length, 1);
+  assert.equal(afterPay.paidDates[0].amount, 1000, 'a payment records what the bill cost at the time');
+
+  // Raising the rent must not rewrite what the earlier payment cost.
+  await store.updateBill(ownerId, bill.id, { amount: 1200 });
+  const reread = store.getBill(ownerId, bill.id);
+  assert.equal(reread.amount, 1200, 'the bill itself reflects the new amount');
+  assert.equal(reread.paidDates[0].amount, 1000, 'the historical payment keeps its original amount');
+
+  await store.deleteAllUserData(ownerId);
+}
+
 async function checkImport() {
   const ownerId = `store-check-import-${Date.now()}`;
   await store.upsertUser({ id: ownerId, username: 'Import Person', avatar: null });
@@ -405,7 +423,11 @@ async function checkImport() {
   assert.equal(notes.find((n) => n.title === 'Loose note').characterId, null);
 
   assert.equal(bills[0].paid, true, 'imported bills keep their paid state');
-  assert.deepEqual(bills[0].paidDates, ['2026-10-01'], 'imported bills keep their payment history');
+  assert.deepEqual(
+    bills[0].paidDates,
+    [{ date: '2026-10-01', amount: 42 }],
+    "a legacy export's bare date strings should normalize to {date, amount} using the bill's amount"
+  );
 
   // Re-analyzing the same file now flags everything as a duplicate.
   const secondPass = store.analyzeImport(ownerId, file);
@@ -431,6 +453,74 @@ async function checkImport() {
   await store.deleteAllUserData(ownerId);
 }
 
+async function checkBudgetRollover() {
+  const ownerId = `store-check-budget-${Date.now()}`;
+  await store.upsertUser({ id: ownerId, username: 'Budget Person', avatar: null });
+  await store.updateUserIncome(ownerId, 3000, 'USD');
+
+  const find = (res, cat) => res.categories.find((c) => c.category === cat);
+
+  // Budget $400/mo for Food starting in January.
+  await store.setBudgetTarget(ownerId, '2026-01', 'Food', 400);
+  assert.equal(store.getUser(ownerId).budgetStartMonth, '2026-01', 'the first target anchors where rollover starts');
+
+  // January: spend $300, so $100 should carry forward.
+  await store.createExpense(ownerId, { amount: 300, category: 'Food', spentOn: '2026-01-15' });
+  const jan = store.getBudgetMonth(ownerId, '2026-01');
+  assert.equal(find(jan, 'Food').carriedIn, 0, 'the first month carries nothing in');
+  assert.equal(find(jan, 'Food').spent, 300);
+  assert.equal(find(jan, 'Food').available, 100, '400 budgeted - 300 spent = 100 available');
+
+  // February: the $100 carries in, giving $500 to work with.
+  const feb = store.getBudgetMonth(ownerId, '2026-02');
+  assert.equal(find(feb, 'Food').carriedIn, 100, "January's leftover should carry into February");
+  assert.equal(find(feb, 'Food').available, 500, '100 carried + 400 budgeted, nothing spent yet');
+
+  // Overspend February by 50 -> a negative balance must carry into March.
+  await store.createExpense(ownerId, { amount: 550, category: 'Food', spentOn: '2026-02-10' });
+  const feb2 = store.getBudgetMonth(ownerId, '2026-02');
+  assert.equal(find(feb2, 'Food').available, -50, 'overspending should go negative, not clamp at zero');
+  const mar = store.getBudgetMonth(ownerId, '2026-03');
+  assert.equal(find(mar, 'Food').carriedIn, -50, 'the overspend carries forward as a debt');
+  assert.equal(find(mar, 'Food').available, 350, '-50 carried + 400 budgeted');
+
+  // Raising the target from March must not rewrite January or February.
+  await store.setBudgetTarget(ownerId, '2026-03', 'Food', 500);
+  assert.equal(find(store.getBudgetMonth(ownerId, '2026-01'), 'Food').target, 400, 'January keeps its original target');
+  assert.equal(find(store.getBudgetMonth(ownerId, '2026-02'), 'Food').target, 400, 'February keeps its original target');
+  assert.equal(find(store.getBudgetMonth(ownerId, '2026-03'), 'Food').target, 500, 'March uses the new target');
+  assert.equal(find(store.getBudgetMonth(ownerId, '2026-04'), 'Food').target, 500, 'later months inherit the most recent target');
+
+  // A paid bill counts as spend in its own category automatically.
+  await store.setBudgetTarget(ownerId, '2026-01', 'Housing', 1000);
+  const bill = await store.createBill(ownerId, { name: 'Rent', amount: 900, category: 'Housing', dueDate: '2026-01-01', frequency: 'monthly' });
+  await store.markBillPaid(ownerId, bill.id);
+  const payMonth = store.getBudgetMonth(ownerId, currentMonthKeyForTest());
+  const housing = payMonth.categories.find((c) => c.category === 'Housing');
+  assert.ok(housing, 'Housing should appear once it has a bill payment');
+  assert.equal(housing.spentBills, 900, 'a paid bill counts toward its category without manual logging');
+  assert.equal(housing.spentLogged, 0, 'and is not double-counted as a logged expense');
+
+  // Deleting a logged expense removes it from the month.
+  const expenses = store.listExpenses(ownerId, '2026-01');
+  await store.deleteExpense(ownerId, expenses[0].id);
+  assert.equal(find(store.getBudgetMonth(ownerId, '2026-01'), 'Food').spent, 0, 'a deleted expense stops counting');
+
+  // Cross-owner isolation.
+  const otherId = `store-check-budget-other-${Date.now()}`;
+  await store.upsertUser({ id: otherId, username: 'Other Budget Person', avatar: null });
+  assert.equal(store.getBudgetMonth(otherId, '2026-02').categories.length, 0, "another owner sees none of this budget");
+  assert.equal(await store.deleteExpense(otherId, expenses[1] ? expenses[1].id : 'nope'), false, "another owner can't delete these expenses");
+
+  await store.deleteAllUserData(ownerId);
+  await store.deleteAllUserData(otherId);
+}
+
+function currentMonthKeyForTest() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
 async function runStoreCheck() {
   await checkNotesAndCharacters();
   await checkReminderOwnership();
@@ -444,6 +534,8 @@ async function runStoreCheck() {
   await checkDefaultCurrency();
   await checkBillCategories();
   await checkTrashSoftDelete();
+  await checkPaymentAmountHistory();
+  await checkBudgetRollover();
   await checkImport();
   console.log('Store check passed.');
 }

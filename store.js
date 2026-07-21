@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
   lastDigestSentAt INTEGER,
   lastLoginAt INTEGER,
   defaultCurrency TEXT DEFAULT 'USD',
-  billCategories TEXT
+  billCategories TEXT,
+  budgetStartMonth TEXT
 );
 
 CREATE TABLE IF NOT EXISTS characters (
@@ -114,6 +115,35 @@ CREATE TABLE IF NOT EXISTS billsAccess (
 );
 `;
 
+// Tables added after the original schema shipped. SCHEMA_SQL only ever runs for
+// a brand-new database, so anything introduced later has to be created here too
+// and run against existing databases on every startup. Every statement is
+// IF NOT EXISTS, so executing it in both paths is harmless.
+const LATER_TABLES_SQL = `
+CREATE TABLE IF NOT EXISTS budgetTargets (
+  id TEXT PRIMARY KEY NOT NULL,
+  ownerId TEXT,
+  effectiveMonth TEXT,
+  category TEXT,
+  amount REAL,
+  createdAt INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_budgetTargets_owner ON budgetTargets(ownerId);
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY NOT NULL,
+  ownerId TEXT,
+  amount REAL,
+  currency TEXT,
+  category TEXT,
+  spentOn TEXT,
+  note TEXT,
+  createdAt INTEGER,
+  deletedAt INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_owner ON expenses(ownerId);
+`;
+
 let db = null;
 
 function applyPragmas(handle) {
@@ -156,6 +186,9 @@ function ensureSchemaUpToDate(handle) {
   ensureColumn(handle, "users", "lastLoginAt", "INTEGER");
   ensureColumn(handle, "users", "defaultCurrency", "TEXT DEFAULT 'USD'");
   ensureColumn(handle, "users", "billCategories", "TEXT");
+  ensureColumn(handle, "users", "budgetStartMonth", "TEXT");
+  // Creates any table introduced after the original schema. Safe to re-run.
+  handle.exec(LATER_TABLES_SQL);
 }
 
 // Migrates a legacy data/db.json into the (already schema-created) handle.
@@ -308,6 +341,7 @@ function initDb() {
   const building = new DatabaseSync(BUILDING_FILE);
   applyPragmas(building);
   building.exec(SCHEMA_SQL);
+  building.exec(LATER_TABLES_SQL);
 
   if (fs.existsSync(LEGACY_JSON_FILE)) {
     migrateFromJson(building, LEGACY_JSON_FILE); // throws on any problem
@@ -343,7 +377,8 @@ function rowToUser(row) {
     authType: row.authType || "discord", mustChangePassword: !!row.mustChangePassword,
     digestFrequency: row.digestFrequency || "off", lastLoginAt: row.lastLoginAt || null,
     lastDigestSentAt: row.lastDigestSentAt || null, defaultCurrency: row.defaultCurrency || "USD",
-    billCategories: row.billCategories ? JSON.parse(row.billCategories) : DEFAULT_BILL_CATEGORIES.slice()
+    billCategories: row.billCategories ? JSON.parse(row.billCategories) : DEFAULT_BILL_CATEGORIES.slice(),
+    budgetStartMonth: row.budgetStartMonth || null
   };
 }
 
@@ -372,6 +407,22 @@ function rowToReminder(row) {
   };
 }
 
+// Payments used to be stored as bare date strings, which meant historical
+// spend was always valued at the bill's *current* amount -- edit the amount and
+// your past months silently changed. They're now {date, amount} pairs. Legacy
+// string entries still read fine, falling back to the current amount as the
+// best guess available for payments made before amounts were recorded.
+function normalizePaidDates(raw, fallbackAmount) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list.map((entry) => {
+    if (typeof entry === "string") return { date: entry, amount: Number(fallbackAmount) || 0 };
+    if (entry && typeof entry === "object") {
+      return { date: entry.date || "", amount: entry.amount != null ? Number(entry.amount) || 0 : Number(fallbackAmount) || 0 };
+    }
+    return null;
+  }).filter((e) => e && e.date);
+}
+
 function rowToBill(row) {
   if (!row) return null;
   return {
@@ -379,7 +430,7 @@ function rowToBill(row) {
     dueDate: row.dueDate, frequency: row.frequency, category: row.category,
     autoPay: !!row.autoPay, url: row.url, color: row.color, notes: row.notes,
     reminderDays: row.reminderDays, paid: !!row.paid,
-    paidDates: row.paidDates ? JSON.parse(row.paidDates) : [],
+    paidDates: normalizePaidDates(row.paidDates ? JSON.parse(row.paidDates) : [], row.amount),
     lastReminderSent: row.lastReminderSent, createdAt: row.createdAt,
     deletedAt: row.deletedAt || null,
     priority: row.priority || "medium"
@@ -944,7 +995,9 @@ async function markBillPaid(ownerId, id) {
   const bill = rowToBill(row);
   const today = dateToStr(new Date());
   if (!bill.paidDates) bill.paidDates = [];
-  bill.paidDates.unshift(today);
+  // Record what it actually cost at the time, so later edits to the bill's
+  // amount don't rewrite history (the budget's rollover depends on this).
+  bill.paidDates.unshift({ date: today, amount: Number(bill.amount) || 0 });
   if (bill.frequency === "one-time") {
     bill.paid = true;
   } else if (bill.dueDate) {
@@ -1015,6 +1068,219 @@ async function emptyTrash(ownerId) {
   const notes = db.prepare("DELETE FROM notes WHERE ownerId = :ownerId AND deletedAt IS NOT NULL").run({ ownerId });
   const bills = db.prepare("DELETE FROM bills WHERE ownerId = :ownerId AND deletedAt IS NOT NULL").run({ ownerId });
   return { notes: Number(notes.changes), bills: Number(bills.changes) };
+}
+
+// ---------- budget ----------
+// Rollover is never stored. A category's available balance is recomputed by
+// walking every month from the budget's start to the month being viewed:
+//
+//   available = Σ (target[m] - spent[m])   for m in start..month
+//
+// That means it can't drift, there's nothing to reconcile at month boundaries,
+// and correcting an old expense fixes every month after it automatically.
+// Targets are versioned by effectiveMonth so changing one today never rewrites
+// what past months were budgeted.
+function monthOf(dateStr) {
+  return String(dateStr || "").slice(0, 7);
+}
+
+function currentMonthKey() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+function isMonthKey(m) {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m || ""));
+}
+
+function addMonthKey(monthKey, delta) {
+  const [y, m] = monthKey.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+// Inclusive list of month keys from start..end. Empty if end precedes start.
+function monthRange(startMonth, endMonth) {
+  const out = [];
+  let cur = startMonth;
+  for (let guard = 0; guard < 1200 && cur <= endMonth; guard++) {
+    out.push(cur);
+    cur = addMonthKey(cur, 1);
+  }
+  return out;
+}
+
+function listBudgetTargetRows(ownerId) {
+  return db.prepare("SELECT * FROM budgetTargets WHERE ownerId = :ownerId ORDER BY effectiveMonth ASC").all({ ownerId });
+}
+
+// The target in force for a category during a given month: the most recent
+// setting at or before that month, or 0 if it was never budgeted.
+function targetInForce(rows, category, month) {
+  let amount = 0;
+  for (const r of rows) {
+    if (r.category !== category) continue;
+    if (r.effectiveMonth > month) break;
+    amount = Number(r.amount) || 0;
+  }
+  return amount;
+}
+
+async function setBudgetTarget(ownerId, month, category, amount) {
+  if (!isMonthKey(month)) throw new Error("Invalid month.");
+  const name = String(category || "").trim();
+  if (!name) throw new Error("Category is required.");
+  const value = Number(amount);
+  if (!isFinite(value) || value < 0) throw new Error("Target must be a positive number.");
+
+  const existing = db.prepare(
+    "SELECT id FROM budgetTargets WHERE ownerId = :ownerId AND effectiveMonth = :month AND category = :category"
+  ).get({ ownerId, month, category: name });
+
+  if (existing) {
+    db.prepare("UPDATE budgetTargets SET amount = :amount WHERE id = :id").run({ id: existing.id, amount: value });
+  } else {
+    db.prepare(
+      `INSERT INTO budgetTargets (id, ownerId, effectiveMonth, category, amount, createdAt)
+       VALUES (:id, :ownerId, :effectiveMonth, :category, :amount, :createdAt)`
+    ).run({ id: uid(), ownerId, effectiveMonth: month, category: name, amount: value, createdAt: Date.now() });
+  }
+  // The first thing budgeted anchors where rollover starts accumulating.
+  const user = db.prepare("SELECT budgetStartMonth FROM users WHERE id = :id").get({ id: ownerId });
+  if (user && !user.budgetStartMonth) {
+    db.prepare("UPDATE users SET budgetStartMonth = :m WHERE id = :id").run({ id: ownerId, m: month });
+  }
+  return { month, category: name, amount: value };
+}
+
+function rowToExpense(row) {
+  if (!row) return null;
+  return {
+    id: row.id, ownerId: row.ownerId, amount: Number(row.amount) || 0,
+    currency: row.currency, category: row.category, spentOn: row.spentOn,
+    note: row.note || "", createdAt: row.createdAt, deletedAt: row.deletedAt || null
+  };
+}
+
+function listExpenses(ownerId, month) {
+  const rows = month
+    ? db.prepare("SELECT * FROM expenses WHERE ownerId = :ownerId AND deletedAt IS NULL AND substr(spentOn,1,7) = :month").all({ ownerId, month })
+    : db.prepare("SELECT * FROM expenses WHERE ownerId = :ownerId AND deletedAt IS NULL").all({ ownerId });
+  return rows.map(rowToExpense).sort((a, b) => (b.spentOn || "").localeCompare(a.spentOn || ""));
+}
+
+async function createExpense(ownerId, partial) {
+  const amount = Number(partial.amount);
+  if (!isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number.");
+  const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(partial.spentOn || "")) ? partial.spentOn : dateToStr(new Date());
+  const expense = {
+    id: uid(), ownerId, amount,
+    currency: partial.currency || "USD",
+    category: String(partial.category || "Other").trim() || "Other",
+    spentOn,
+    note: String(partial.note || "").slice(0, 200),
+    createdAt: Date.now(), deletedAt: null
+  };
+  db.prepare(
+    `INSERT INTO expenses (id, ownerId, amount, currency, category, spentOn, note, createdAt, deletedAt)
+     VALUES (:id, :ownerId, :amount, :currency, :category, :spentOn, :note, :createdAt, NULL)`
+  ).run({
+    id: expense.id, ownerId: expense.ownerId, amount: expense.amount, currency: expense.currency,
+    category: expense.category, spentOn: expense.spentOn, note: expense.note, createdAt: expense.createdAt
+  });
+  return expense;
+}
+
+async function deleteExpense(ownerId, id) {
+  const row = db.prepare("SELECT * FROM expenses WHERE id = :id AND deletedAt IS NULL").get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare("UPDATE expenses SET deletedAt = :deletedAt WHERE id = :id").run({ id, deletedAt: Date.now() });
+  return true;
+}
+
+// What was actually spent per category in a month: money you logged by hand,
+// plus every bill payment recorded that month (valued at what it cost then).
+function spendForMonth(ownerId, month, bills) {
+  const out = {};
+  const bump = (category, field, value) => {
+    const c = String(category || "Other");
+    if (!out[c]) out[c] = { bills: 0, logged: 0 };
+    out[c][field] += value;
+  };
+  listExpenses(ownerId, month).forEach((e) => bump(e.category, "logged", e.amount));
+  bills.forEach((b) => {
+    (b.paidDates || []).forEach((p) => {
+      if (monthOf(p.date) === month) bump(b.category, "bills", Number(p.amount) || 0);
+    });
+  });
+  return out;
+}
+
+function getBudgetMonth(ownerId, month) {
+  const targetMonth = isMonthKey(month) ? month : currentMonthKey();
+  const user = getUser(ownerId) || {};
+  const bills = listBills(ownerId);
+  const targetRows = listBudgetTargetRows(ownerId);
+
+  // Rollover accumulates from whenever budgeting began; never earlier.
+  const start = isMonthKey(user.budgetStartMonth) ? user.budgetStartMonth : targetMonth;
+  const months = start <= targetMonth ? monthRange(start, targetMonth) : [targetMonth];
+
+  // Show the user's current categories, plus any that still carry history.
+  const categories = new Set(user.billCategories || []);
+  targetRows.forEach((r) => categories.add(r.category));
+  bills.forEach((b) => categories.add(b.category || "Other"));
+  listExpenses(ownerId, targetMonth).forEach((e) => categories.add(e.category));
+
+  const running = new Map();
+  let detail = [];
+
+  for (const m of months) {
+    const spend = spendForMonth(ownerId, m, bills);
+    Object.keys(spend).forEach((c) => categories.add(c));
+    const rows = [];
+    for (const category of categories) {
+      const target = targetInForce(targetRows, category, m);
+      const spentBills = (spend[category] && spend[category].bills) || 0;
+      const spentLogged = (spend[category] && spend[category].logged) || 0;
+      const spent = spentBills + spentLogged;
+      const carriedIn = running.get(category) || 0;
+      const available = carriedIn + target - spent;
+      running.set(category, available);
+      rows.push({ category, target, carriedIn, spentBills, spentLogged, spent, available });
+    }
+    if (m === targetMonth) detail = rows;
+  }
+
+  // Drop categories that have never had a target, spend, or carried balance.
+  detail = detail.filter((r) => r.target || r.spent || r.carriedIn);
+  detail.sort((a, b) => a.category.localeCompare(b.category));
+
+  const billsDue = bills
+    .filter((b) => !b.paid && monthOf(b.dueDate) === targetMonth)
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  const totals = detail.reduce((acc, r) => {
+    acc.target += r.target; acc.spent += r.spent; acc.available += r.available;
+    return acc;
+  }, { target: 0, spent: 0, available: 0 });
+  const income = user.incomeEstimate != null ? Number(user.incomeEstimate) : null;
+
+  return {
+    month: targetMonth,
+    startMonth: start,
+    currency: user.defaultCurrency || "USD",
+    income,
+    billsDue,
+    totals,
+    // Income not yet assigned to any category. Bills live inside their
+    // category's target, so they are deliberately not subtracted again here.
+    unallocated: income != null ? income - totals.target : null,
+    categories: detail,
+    expenses: listExpenses(ownerId, targetMonth),
+    billPayments: bills.flatMap((b) => (b.paidDates || [])
+      .filter((p) => monthOf(p.date) === targetMonth)
+      .map((p) => ({ billId: b.id, name: b.name, category: b.category || "Other", date: p.date, amount: Number(p.amount) || 0 })))
+  };
 }
 
 // ---------- import ----------
@@ -1113,7 +1379,8 @@ async function importData(ownerId, data, skipKeys) {
     const created = await createBill(ownerId, b);
     // createBill deliberately starts every bill unpaid with no history, so the
     // imported payment record is restored separately.
-    const paidDates = Array.isArray(b.paidDates) ? b.paidDates : [];
+    // Old export files carry bare date strings; normalize them on the way in.
+    const paidDates = normalizePaidDates(b.paidDates, b.amount);
     if (b.paid || paidDates.length) {
       db.prepare("UPDATE bills SET paid = :paid, paidDates = :paidDates WHERE id = :id")
         .run({ id: created.id, paid: b.paid ? 1 : 0, paidDates: JSON.stringify(paidDates) });
@@ -1205,6 +1472,7 @@ module.exports = {
   listBills, getBill, createBill, updateBill, markBillPaid, markBillUnpaid, deleteBill,
   listTrash, restoreFromTrash, deleteFromTrashPermanently, emptyTrash, purgeExpiredTrash,
   analyzeImport, importData,
+  getBudgetMonth, setBudgetTarget, listExpenses, createExpense, deleteExpense,
   getAllBills, markBillReminderSent,
   listAllowlist, addAllowlistEntry, removeAllowlistEntry,
   listBillsAccess, hasBillsAccess, grantBillsAccess, revokeBillsAccess

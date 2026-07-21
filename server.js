@@ -113,11 +113,17 @@ function renderErrorPage(title, message) {
 </html>`;
 }
 
+// The route tests sign in as many accounts in quick succession, which would
+// otherwise trip the login limiter. Opt-in via env so real deployments are
+// never accidentally left unthrottled.
+const rateLimitsDisabled = process.env.LEDGER_DISABLE_RATE_LIMIT === "1";
+
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => rateLimitsDisabled,
   handler: (req, res) => {
     res.status(429).send(renderErrorPage(
       "Slow down",
@@ -131,6 +137,7 @@ const apiLimiter = rateLimit({
   limit: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => rateLimitsDisabled,
   // Key by logged-in user when possible, so people sharing an IP/network
   // (e.g. two housemates both using Bills) don't throttle each other.
   keyGenerator: (req) => (req.session && req.session.user) ? `user:${req.session.user.id}` : req.ip,
@@ -843,6 +850,34 @@ app.post("/api/admin/bills-access", requireAdmin, async (req, res) => {
 
 app.delete("/api/admin/bills-access/:id", requireAdmin, async (req, res) => {
   const ok = await store.revokeBillsAccess(req.params.id);
+  if (!ok) return res.status(404).json({ error: "Not found" });
+  res.json({ ok: true });
+});
+
+// ---------- Budget ----------
+app.get("/api/budget/:month", requireBillsAccess, (req, res) => {
+  res.json(store.getBudgetMonth(req.session.user.id, req.params.month));
+});
+
+app.put("/api/budget/target", requireBillsAccess, async (req, res) => {
+  const { month, category, amount } = req.body || {};
+  try {
+    res.json(await store.setBudgetTarget(req.session.user.id, month, category, amount));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/budget/expenses", requireBillsAccess, async (req, res) => {
+  try {
+    res.status(201).json(await store.createExpense(req.session.user.id, req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/budget/expenses/:id", requireBillsAccess, async (req, res) => {
+  const ok = await store.deleteExpense(req.session.user.id, req.params.id);
   if (!ok) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
 });
