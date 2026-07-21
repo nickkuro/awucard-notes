@@ -687,6 +687,41 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .budget-suggest-row:last-child { border-bottom: none; }
 .budget-suggest-count { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-dim); }
 .budget-suggest-amount { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--teal); flex-shrink: 0; }
+
+/* ---- "How this works" help ---- */
+.help-btn {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; line-height: 1;
+  color: var(--ink-dim); background: var(--surface); border: 1px solid var(--border);
+}
+.help-btn:hover { color: var(--accent); border-color: var(--accent); }
+.help-modal { max-width: 520px; width: 92%; max-height: 82vh; display: flex; flex-direction: column; }
+.help-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.help-head .modal-title { margin-bottom: 0; }
+.help-body { overflow-y: auto; margin: 14px 0 4px; }
+.help-step { display: flex; gap: 11px; margin-bottom: 15px; }
+.help-step:last-child { margin-bottom: 4px; }
+.help-step-num {
+  flex-shrink: 0; width: 21px; height: 21px; border-radius: 50%; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+  background: var(--accent); color: var(--accent-ink);
+}
+.help-step-text { font-size: 13.5px; line-height: 1.65; color: var(--ink-mid); }
+.help-step-text strong { color: var(--ink); font-weight: 600; }
+.help-example {
+  background: var(--surface-hi); border: 1px solid var(--border); border-radius: 7px;
+  padding: 11px 13px; margin-top: 14px; font-size: 12.5px; line-height: 1.65; color: var(--ink-mid);
+}
+.help-example-title {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-dim); margin-bottom: 6px;
+}
+.help-example code {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  background: var(--surface); padding: 1px 4px; border-radius: 3px; color: var(--ink);
+}
 .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .color-swatch {
   width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
@@ -961,6 +996,14 @@ kbd {
 .bill-editor-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-dim); font-size: 14px; text-align: center; padding: 30px; }
 .bill-dashboard { flex: 1; overflow-y: auto; padding: 34px 30px; }
 .bill-dashboard-empty { color: var(--ink-dim); font-size: 14px; text-align: center; padding: 60px 30px; }
+.bill-dash-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  max-width: 560px; margin: 0 auto 14px;
+}
+.bill-dash-header-title {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
 .bill-dash-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; max-width: 560px; margin: 0 auto 26px; }
 .bill-dash-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 10px; text-align: center; }
 .bill-dash-stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; }
@@ -1697,6 +1740,20 @@ kbd {
   </div>
 </div>
 
+<!-- HOW THIS WORKS MODAL -->
+<div class="overlay-bg hidden" id="helpOverlay">
+  <div class="modal help-modal">
+    <div class="help-head">
+      <div class="modal-title" id="helpTitle"></div>
+      <button class="settings-close-btn" id="helpCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="help-body" id="helpBody"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="helpDoneBtn">Got it</button>
+    </div>
+  </div>
+</div>
+
 <!-- CHAR EDIT MODAL -->
 <div class="overlay-bg hidden" id="charEditOverlay">
   <div class="modal">
@@ -1874,6 +1931,7 @@ kbd {
             <div class="cl-item new">Changing a target only affects that month onward, so adjusting this month's budget never rewrites what past months were set to.</div>
             <div class="cl-item new">"Start from your bills" sets up targets for every category that already has bills in it, so you're not filling in an empty budget by hand. Yearly and quarterly bills are spread across the months rather than landing all at once, and a category you've already budgeted is left alone.</div>
             <div class="cl-item new">Categories with a bill due this month now show up even before you've budgeted for them, so an unbudgeted commitment isn't hidden.</div>
+            <div class="cl-item new">Added a "?" button to Bills and Budget that explains how each one works in plain language, with a worked example. Handy if you've handed someone a Bills account and don't fancy explaining rollover yourself.</div>
             <div class="cl-item fix">Bills now record what each payment actually cost at the time. Previously "Paid in recent months" valued old payments at the bill's current amount, so raising a bill's price quietly changed your spending history.</div>
           </div>
         </div>

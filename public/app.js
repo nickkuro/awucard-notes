@@ -1004,6 +1004,71 @@ document.getElementById("discordDigestSave").addEventListener("click",function()
   });
 });
 
+// ---------- "How this works" help ----------
+// Plain-language explanations. Kept deliberately short: the About panel has the
+// full detail, this is just enough to get the mental model.
+var HELP_TOPICS = {
+  bills: {
+    title: "How Bills works",
+    steps: [
+      "<strong>Add a bill</strong> with its amount, due date and how often it repeats. Give it a category (Housing, Food, and so on) so it can be grouped later.",
+      "<strong>Mark it paid</strong> when you've actually paid it. A repeating bill automatically moves itself to its next due date, so you never re-enter it.",
+      "<strong>The dashboard adds it all up</strong> for you: what's overdue, what's due soon, and a real month-by-month forecast for the next year based on each bill's actual dates, not an average.",
+      "<strong>Set your monthly income</strong> at the bottom and it tells you what's left after this month's bills."
+    ],
+    example: {
+      title: "For example",
+      body: "Rent is <code>$1,200</code>, monthly, due the 1st. You mark it paid on the 1st of July; it jumps to 1 August on its own. July's forecast counts it once, and the yearly total counts it twelve times."
+    }
+  },
+  budget: {
+    title: "How Budget works",
+    steps: [
+      "<strong>Give each category a monthly target</strong> — what you intend to spend. Click the target amount on any category to change it.",
+      "<strong>Bills count on their own.</strong> Anything you've marked paid in Bills is already counted against its category, so the only thing you type here is everyday spending like groceries or petrol.",
+      "<strong>Log what you spend</strong> using the row near the bottom. Amount, category, done.",
+      "<strong>Whatever's left rolls into next month.</strong> Finish $60 under on Food and next month starts with $60 extra. Go over and the shortfall carries too, so the total stays honest instead of quietly resetting."
+    ],
+    example: {
+      title: "For example",
+      body: "Food is budgeted <code>$400</code>. You spend <code>$340</code>, so August starts with <code>$460</code> to play with. Spend <code>$430</code> instead and August starts at <code>$370</code>. The bar shows amber for money that came from a bill and teal for what you logged yourself."
+    }
+  }
+};
+
+function openHelp(topic) {
+  var t = HELP_TOPICS[topic];
+  if(!t) return;
+  document.getElementById("helpTitle").textContent = t.title;
+  document.getElementById("helpBody").innerHTML =
+    t.steps.map(function(s, i){
+      return '<div class="help-step">'+
+        '<span class="help-step-num">'+(i+1)+'</span>'+
+        '<span class="help-step-text">'+s+'</span>'+
+      '</div>';
+    }).join("")+
+    (t.example
+      ? '<div class="help-example"><div class="help-example-title">'+esc(t.example.title)+'</div>'+t.example.body+'</div>'
+      : "");
+  document.getElementById("helpOverlay").classList.remove("hidden");
+}
+
+function closeHelp() {
+  document.getElementById("helpOverlay").classList.add("hidden");
+}
+
+document.getElementById("helpCloseBtn").addEventListener("click", closeHelp);
+document.getElementById("helpDoneBtn").addEventListener("click", closeHelp);
+document.getElementById("helpOverlay").addEventListener("click", function(e){
+  if(e.target === this) closeHelp();
+});
+
+// Delegated so it keeps working across the re-renders both views do.
+document.addEventListener("click", function(e){
+  var btn = e.target.closest && e.target.closest("[data-help]");
+  if(btn) openHelp(btn.getAttribute("data-help"));
+});
+
 // ---------- Budget ----------
 var budgetMonth = null;   // 'YYYY-MM' currently being viewed
 var budgetData = null;
@@ -1169,6 +1234,7 @@ function renderBudget() {
         '<div class="budget-month-label">'+esc(monthLabel(d.month))+'</div>'+
         '<button class="budget-nav-btn" id="budgetNext" aria-label="Next month">›</button>'+
         (d.month!==thisMonthKey()?'<button class="budget-today-btn" id="budgetToday">Today</button>':'')+
+        '<button class="help-btn" data-help="budget" title="How this works" aria-label="How this works">?</button>'+
       '</div>'+
 
       '<div class="budget-stats">'+
@@ -1926,6 +1992,7 @@ document.addEventListener("keydown",function(e){
     document.getElementById("confirmOverlay").classList.add("hidden");
     document.getElementById("charEditOverlay").classList.add("hidden");
     document.getElementById("infoOverlay").classList.add("hidden");
+    document.getElementById("helpOverlay").classList.add("hidden");
     return;
   }
   // Ctrl/Cmd+S — force save current note immediately
@@ -2820,7 +2887,12 @@ function renderBillDashboard() {
       '</div>'
     : '<div class="bill-dashboard-empty">No bills yet. Add one to see an overview here.</div>';
 
-  el.innerHTML = statsHtml +
+  el.innerHTML =
+    '<div class="bill-dash-header">'+
+      '<span class="bill-dash-header-title">Overview</span>'+
+      '<button class="help-btn" data-help="bills" title="How this works" aria-label="How this works">?</button>'+
+    '</div>'+
+    statsHtml +
     '<div class="bill-dash-section">'+
       '<div class="bill-dash-heading">Estimated monthly income</div>'+
       '<div class="bill-dash-income-row">'+
