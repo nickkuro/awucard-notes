@@ -845,6 +845,45 @@ app.delete("/api/admin/bills-access/:id", requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Trash ----------
+app.get("/api/trash", requireAuth, (req, res) => {
+  res.json(store.listTrash(req.session.user.id));
+});
+
+app.post("/api/trash/:type/:id/restore", requireAuth, async (req, res) => {
+  const ok = await store.restoreFromTrash(req.session.user.id, req.params.type, req.params.id);
+  if (!ok) return res.status(404).json({ error: "Not found" });
+  res.json({ ok: true });
+});
+
+app.delete("/api/trash/:type/:id", requireAuth, async (req, res) => {
+  const ok = await store.deleteFromTrashPermanently(req.session.user.id, req.params.type, req.params.id);
+  if (!ok) return res.status(404).json({ error: "Not found" });
+  res.json({ ok: true });
+});
+
+app.delete("/api/trash", requireAuth, async (req, res) => {
+  res.json(await store.emptyTrash(req.session.user.id));
+});
+
+// ---------- Trash purge job ----------
+// Unlike the DM jobs this doesn't depend on Discord, so it runs regardless of
+// whether a bot token is configured.
+function startTrashPurgeJob() {
+  const runPurge = async () => {
+    try {
+      const purged = await store.purgeExpiredTrash();
+      if (purged.notes || purged.bills) {
+        console.log(`Trash purge: removed ${purged.notes} note(s), ${purged.bills} bill(s).`);
+      }
+    } catch (err) {
+      console.error("Trash purge failed:", err.message);
+    }
+  };
+  runPurge();
+  setInterval(runPurge, 24 * 60 * 60 * 1000);
+}
+
 app.get("/healthz", (req, res) => res.send("ok"));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -855,6 +894,7 @@ if (require.main === module) {
   const port = PORT || 3000;
   app.listen(port, () => {
     console.log(`Ledger running on http://localhost:${port}`);
+    startTrashPurgeJob();
     if (BOT_TOKEN) {
       startReminderJob();
       startBillReminderJob();

@@ -537,6 +537,29 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 .access-remove-btn:hover { background: var(--border); color: var(--danger); }
 .access-empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 16px 0; }
+/* trash ("Recently deleted") list -- same shape as the access list */
+.trash-list { max-height: 260px; overflow-y: auto; }
+.trash-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); margin-bottom: 6px;
+}
+.trash-item-info { min-width: 0; }
+.trash-item-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash-item-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); }
+.trash-item-kind {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.04em;
+  padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); color: var(--ink-dim);
+}
+.trash-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.trash-btn {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  padding: 4px 9px; border-radius: 5px; color: var(--ink-mid);
+  background: var(--surface-hi); border: 1px solid var(--border);
+}
+.trash-btn:hover { color: var(--ink); border-color: var(--accent); }
+.trash-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+.trash-empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 16px 0; }
 .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .color-swatch {
   width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
@@ -1432,6 +1455,14 @@ kbd {
           </div>
         </div>
         <div class="settings-pane-section">
+          <div class="settings-pane-section-heading">Recently deleted</div>
+          <p style="margin-bottom:12px;">Deleted notes and bills are kept here for 30 days so you can get them back, then removed automatically.</p>
+          <div class="trash-list" id="trashList"></div>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="trashEmptyBtn" style="color:var(--danger);">Empty trash</button>
+          </div>
+        </div>
+        <div class="settings-pane-section">
           <div class="settings-pane-section-heading">Danger zone</div>
           <div class="modal-actions" style="justify-content:flex-start;flex-wrap:wrap;">
             <button class="btn-cancel" id="clearNotesBtn" style="color:var(--danger);">Clear all notes</button>
@@ -1606,6 +1637,10 @@ kbd {
           <div class="info-item-body">Opt in from the settings menu to get a daily, weekly, or monthly DM summarizing overdue bills, bills due soon, and upcoming reminders, sent only when there's something to report. Discord accounts only, since it's delivered via DM.</div>
         </div>
         <div class="info-item">
+          <div class="info-item-title">Recently deleted</div>
+          <div class="info-item-body">Deleting a note or bill moves it to "Recently deleted" in Settings → Your data rather than removing it immediately. You can restore anything from there for 30 days, after which it's cleared automatically. You can also delete an item for good yourself, or empty the whole trash, if you'd rather not wait.</div>
+        </div>
+        <div class="info-item">
           <div class="info-item-title">Export your data</div>
           <div class="info-item-body">From the settings menu, download all your notes, characters, reminders, and bills as a single JSON file for your own backup.</div>
         </div>
@@ -1660,6 +1695,7 @@ kbd {
             <div class="cl-item new">Bill categories are now yours to customize (Settings → Account), so you can add or remove categories instead of being stuck with a fixed list. Comes with a new "Savings" category by default.</div>
             <div class="cl-item new">Spoiler notes: mark a note as a spoiler (🙈 in the editor) to blur its card in the list until you open it. Good for plot twists you don't want to spot at a glance.</div>
             <div class="cl-item fix">Actually fixed the notes list scrollbar breaking after switching to Calendar or Bills and back. The last go at this treated a symptom; turns out the notes pane was quietly falling back to the wrong layout mode. Fixed properly at the source this time.</div>
+            <div class="cl-item new">Deleted notes and bills now go to a "Recently deleted" list in Settings → Your data instead of vanishing. Restore them for up to 30 days, or delete them for good yourself.</div>
             <div class="cl-item fix">Under-the-hood hardening: the markdown libraries are now served from Ledger itself instead of a third-party CDN, and the app sends a Content-Security-Policy. Nothing changes for you, it's just a bit tighter and more self-contained.</div>
           </div>
         </div>

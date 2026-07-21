@@ -434,7 +434,7 @@ function renderCharDropdown() {
       e.stopPropagation();
       var id=btn.getAttribute("data-del");
       var c=state.characters.find(function(x){return x.id===id;});
-      openConfirm("Delete character \""+(c?c.name:"")+"\" and all their notes? This can't be undone.",{type:"deleteChar",id:id});
+      openConfirm("Delete character \""+(c?c.name:"")+"\" and all their notes? The notes can be restored from Settings for 30 days; the character itself can't.",{type:"deleteChar",id:id});
     });
   });
 }
@@ -590,7 +590,7 @@ function renderList() {
       if(e.shiftKey){
         deleteNote(id); // skip confirm
       } else {
-        openConfirm("Delete \""+(note&&note.title||"Untitled")+"\"? This can't be undone.",{type:"deleteNote",id:id});
+        openConfirm("Delete \""+(note&&note.title||"Untitled")+"\"? You can restore it from Settings for 30 days.",{type:"deleteNote",id:id});
       }
     });
   });
@@ -865,6 +865,7 @@ function openSettingsPane(name) {
     api("/api/me/ical-token").then(function(res){
       document.getElementById("calendarFeedUrl").value=res.url;
     });
+    loadTrashList();
   } else if(name==="access"){
     document.getElementById("accessIdInput").value="";
     document.getElementById("accessLabelInput").value="";
@@ -940,7 +941,7 @@ document.getElementById("clearNotesBtn").addEventListener("click",function(){
   document.getElementById("settingsOverlay").classList.add("hidden");
   var c=currentChar();
   var label=c?"character \""+c.name+"\"":"all characters";
-  openConfirm("Clear all notes for "+label+"? This can't be undone.",{type:"clearNotes"});
+  openConfirm("Clear all notes for "+label+"? You can restore them from Settings for 30 days.",{type:"clearNotes"});
 });
 
 document.getElementById("timezoneSave").addEventListener("click",function(){
@@ -1000,6 +1001,68 @@ document.getElementById("discordDigestSave").addEventListener("click",function()
     if(state.user) state.user.digestFrequency=freq;
     showToast("Digest preference saved");
   });
+});
+
+// ---------- Trash ("Recently deleted") ----------
+function trashDeletedLabel(deletedAt, retentionDays) {
+  var daysLeft = retentionDays - Math.floor((Date.now()-deletedAt)/86400000);
+  if(daysLeft<=0) return "Deleted "+formatDueDate(new Date(deletedAt).toISOString().slice(0,10))+" · removing soon";
+  return "Deleted "+formatDueDate(new Date(deletedAt).toISOString().slice(0,10))+" · "+daysLeft+" day"+(daysLeft===1?"":"s")+" left";
+}
+
+function loadTrashList() {
+  var list=document.getElementById("trashList");
+  if(!list) return;
+  api("/api/trash").then(function(res){
+    var items=[]
+      .concat((res.notes||[]).map(function(n){
+        return { type:"note", id:n.id, label:n.title||"Untitled", deletedAt:n.deletedAt };
+      }))
+      .concat((res.bills||[]).map(function(b){
+        return { type:"bill", id:b.id, label:b.name||"Untitled bill", deletedAt:b.deletedAt };
+      }))
+      .sort(function(a,b){ return b.deletedAt-a.deletedAt; });
+
+    if(!items.length){
+      list.innerHTML='<div class="trash-empty">Nothing deleted recently.</div>';
+      return;
+    }
+    list.innerHTML=items.map(function(it){
+      return '<div class="trash-item">'+
+        '<div class="trash-item-info">'+
+          '<div class="trash-item-label"><span class="trash-item-kind">'+(it.type==="note"?"NOTE":"BILL")+'</span> '+esc(it.label)+'</div>'+
+          '<div class="trash-item-meta">'+esc(trashDeletedLabel(it.deletedAt, res.retentionDays||30))+'</div>'+
+        '</div>'+
+        '<div class="trash-item-actions">'+
+          '<button class="trash-btn" data-restore-type="'+it.type+'" data-restore-id="'+it.id+'">Restore</button>'+
+          '<button class="trash-btn danger" data-purge-type="'+it.type+'" data-purge-id="'+it.id+'">Delete forever</button>'+
+        '</div>'+
+      '</div>';
+    }).join("");
+
+    list.querySelectorAll("[data-restore-id]").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var type=btn.getAttribute("data-restore-type");
+        api("/api/trash/"+type+"/"+btn.getAttribute("data-restore-id")+"/restore",{method:"POST"}).then(function(){
+          loadTrashList();
+          // Pull the restored item back into the active view.
+          if(type==="note") loadNotes().then(render);
+          else if(state.canAccessBills) api("/api/bills").then(function(bills){ state.bills=bills||[]; renderBillList(); });
+          showToast("Restored");
+        });
+      });
+    });
+    list.querySelectorAll("[data-purge-id]").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        openConfirm("Permanently delete this item? This one really can't be undone.",
+          {type:"purgeTrashItem", trashType:btn.getAttribute("data-purge-type"), id:btn.getAttribute("data-purge-id")});
+      });
+    });
+  });
+}
+
+document.getElementById("trashEmptyBtn").addEventListener("click",function(){
+  openConfirm("Permanently delete everything in the trash? This can't be undone.",{type:"emptyTrash"});
 });
 
 document.getElementById("exportDataBtn").addEventListener("click",function(){
@@ -1390,6 +1453,23 @@ document.getElementById("confirmOk").addEventListener("click",function(){
     api("/api/me/ical-token/regenerate",{method:"POST"}).then(function(res){
       document.getElementById("calendarFeedUrl").value=res.url;
       showToast("Calendar link regenerated");
+    });
+    return;
+  }
+  else if(pendingAction.type==="purgeTrashItem"){
+    var purgeType=pendingAction.trashType, purgeId=pendingAction.id;
+    closeConfirm();
+    api("/api/trash/"+purgeType+"/"+purgeId,{method:"DELETE"}).then(function(){
+      loadTrashList();
+      showToast("Deleted forever");
+    });
+    return;
+  }
+  else if(pendingAction.type==="emptyTrash"){
+    closeConfirm();
+    api("/api/trash",{method:"DELETE"}).then(function(){
+      loadTrashList();
+      showToast("Trash emptied");
     });
     return;
   }
@@ -2501,7 +2581,7 @@ function renderBillEditor() {
       .catch(function(){showToast("Failed. Is the bot configured?");});
   });
   document.getElementById("billDeleteBtn").addEventListener("click",function(){
-    openConfirm("Delete \""+bill.name+"\"? This can't be undone.",{type:"deleteBill",id:bill.id});
+    openConfirm("Delete \""+bill.name+"\"? You can restore it from Settings for 30 days.",{type:"deleteBill",id:bill.id});
   });
   document.getElementById("billBackBtn").addEventListener("click",function(){
     state.selectedBillId = null;

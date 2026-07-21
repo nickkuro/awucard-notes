@@ -315,6 +315,60 @@ async function checkBillCategories() {
   assert.deepEqual(store.getUser(ownerId).billCategories, ['Rent', 'Groceries'], 'the change should persist');
 }
 
+async function checkTrashSoftDelete() {
+  const ownerId = `store-check-trash-${Date.now()}`;
+  const otherId = `store-check-trash-other-${Date.now()}`;
+  await store.upsertUser({ id: ownerId, username: 'Trash Person', avatar: null });
+  await store.upsertUser({ id: otherId, username: 'Other Trash Person', avatar: null });
+
+  const note = await store.createNote(ownerId, { title: 'Doomed note', body: 'body' });
+  const bill = await store.createBill(ownerId, { name: 'Doomed bill', amount: 12, dueDate: '2026-10-01', frequency: 'monthly' });
+
+  await store.deleteNote(ownerId, note.id);
+  await store.deleteBill(ownerId, bill.id);
+
+  // Gone from the normal views...
+  assert.ok(!(await store.listNotes(ownerId, '__all__')).some((n) => n.id === note.id), 'a deleted note should leave the notes list');
+  assert.equal(store.getNote(ownerId, note.id), null, 'a deleted note should not be fetchable');
+  assert.ok(!store.listBills(ownerId).some((b) => b.id === bill.id), 'a deleted bill should leave the bills list');
+  assert.ok(!store.getAllBills().some((b) => b.id === bill.id), 'a deleted bill should not reach the reminder job');
+
+  // ...but present in the trash.
+  const trash = store.listTrash(ownerId);
+  assert.ok(trash.notes.some((n) => n.id === note.id), 'the deleted note should be in the trash');
+  assert.ok(trash.bills.some((b) => b.id === bill.id), 'the deleted bill should be in the trash');
+
+  // Another owner can neither see nor act on it.
+  const otherTrash = store.listTrash(otherId);
+  assert.equal(otherTrash.notes.length, 0, "another owner's trash should be empty");
+  assert.equal(await store.restoreFromTrash(otherId, 'note', note.id), false, 'another owner should not be able to restore it');
+  assert.equal(await store.deleteFromTrashPermanently(otherId, 'note', note.id), false, 'another owner should not be able to purge it');
+
+  // Restore brings it back intact.
+  assert.equal(await store.restoreFromTrash(ownerId, 'note', note.id), true);
+  const restored = store.getNote(ownerId, note.id);
+  assert.ok(restored, 'the restored note should be fetchable again');
+  assert.equal(restored.title, 'Doomed note', 'restore should preserve content');
+  assert.equal(restored.deletedAt, null, 'a restored note should no longer be marked deleted');
+
+  // Permanent delete really removes it.
+  await store.deleteNote(ownerId, note.id);
+  assert.equal(await store.deleteFromTrashPermanently(ownerId, 'note', note.id), true);
+  assert.equal(store.listTrash(ownerId).notes.length, 0, 'a permanently deleted note should leave the trash');
+
+  // Purge only takes items past the retention window.
+  const fresh = await store.createNote(ownerId, { title: 'Recently binned', body: 'x' });
+  await store.deleteNote(ownerId, fresh.id);
+  await store.purgeExpiredTrash(30);
+  assert.ok(store.listTrash(ownerId).notes.some((n) => n.id === fresh.id), 'a just-deleted note should survive a 30-day purge');
+  await store.purgeExpiredTrash(0);
+  assert.ok(!store.listTrash(ownerId).notes.some((n) => n.id === fresh.id), 'a zero-day purge should clear it');
+
+  await store.emptyTrash(ownerId);
+  await store.deleteAllUserData(ownerId);
+  await store.deleteAllUserData(otherId);
+}
+
 async function runStoreCheck() {
   await checkNotesAndCharacters();
   await checkReminderOwnership();
@@ -327,6 +381,7 @@ async function runStoreCheck() {
   await checkIcalTokenAndDigest();
   await checkDefaultCurrency();
   await checkBillCategories();
+  await checkTrashSoftDelete();
   console.log('Store check passed.');
 }
 

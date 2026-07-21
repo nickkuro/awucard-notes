@@ -112,6 +112,44 @@ test("a logged-in user can create and read their own note", async () => {
   assert.ok(list.json.some((n) => n.id === created.json.id), "own note should appear in the list");
 });
 
+test("deleting a note moves it to the trash and it can be restored", async () => {
+  const cookie = await loginAs("alice_trash", "correcthorsebattery");
+  const created = await req("POST", "/api/notes", { cookie, body: { title: "Trash me", body: "content" } });
+  const noteId = created.json.id;
+
+  assert.equal((await req("DELETE", "/api/notes/" + noteId, { cookie })).status, 200);
+
+  const afterDelete = await req("GET", "/api/notes", { cookie });
+  assert.ok(!afterDelete.json.some((n) => n.id === noteId), "a deleted note should leave the active list");
+
+  const trash = await req("GET", "/api/trash", { cookie });
+  assert.equal(trash.status, 200);
+  assert.ok(trash.json.notes.some((n) => n.id === noteId), "the note should be in the trash");
+
+  assert.equal((await req("POST", `/api/trash/note/${noteId}/restore`, { cookie })).status, 200);
+  const afterRestore = await req("GET", "/api/notes", { cookie });
+  const back = afterRestore.json.find((n) => n.id === noteId);
+  assert.ok(back, "the restored note should be back in the active list");
+  assert.equal(back.title, "Trash me", "restore should preserve content");
+});
+
+test("a user cannot see or act on another user's trashed items", async () => {
+  const aliceCookie = await loginAs("alice_trashowner", "correcthorsebattery");
+  const created = await req("POST", "/api/notes", { cookie: aliceCookie, body: { title: "Alice trashed", body: "secret" } });
+  const noteId = created.json.id;
+  await req("DELETE", "/api/notes/" + noteId, { cookie: aliceCookie });
+
+  const bobCookie = await loginAs("bob_trashsnoop", "correcthorsebattery");
+  const bobTrash = await req("GET", "/api/trash", { cookie: bobCookie });
+  assert.ok(!bobTrash.json.notes.some((n) => n.id === noteId), "Bob should not see Alice's trashed note");
+
+  assert.equal((await req("POST", `/api/trash/note/${noteId}/restore`, { cookie: bobCookie })).status, 404, "Bob should not be able to restore it");
+  assert.equal((await req("DELETE", `/api/trash/note/${noteId}`, { cookie: bobCookie })).status, 404, "Bob should not be able to purge it");
+
+  // Still recoverable by its actual owner.
+  assert.equal((await req("POST", `/api/trash/note/${noteId}/restore`, { cookie: aliceCookie })).status, 200);
+});
+
 test("a user cannot read, edit, or delete another user's note", async () => {
   const aliceCookie = await loginAs("alice_owner", "correcthorsebattery");
   const created = await req("POST", "/api/notes", { cookie: aliceCookie, body: { title: "Alice private", body: "top secret" } });

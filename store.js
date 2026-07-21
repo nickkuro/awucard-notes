@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS notes (
   dueDate TEXT,
   createdAt INTEGER,
   updatedAt INTEGER,
+  deletedAt INTEGER,
   prevTitle TEXT,
   prevBody TEXT,
   prevSavedAt INTEGER
@@ -96,6 +97,7 @@ CREATE TABLE IF NOT EXISTS bills (
   paidDates TEXT,
   lastReminderSent TEXT,
   createdAt INTEGER,
+  deletedAt INTEGER,
   priority TEXT DEFAULT 'medium'
 );
 CREATE INDEX IF NOT EXISTS idx_bills_owner ON bills(ownerId);
@@ -133,6 +135,9 @@ function ensureColumn(handle, table, column, type) {
 
 function ensureSchemaUpToDate(handle) {
   ensureColumn(handle, "notes", "spoiler", "INTEGER DEFAULT 0");
+  // Soft delete: rows with a deletedAt sit in the trash until purged.
+  ensureColumn(handle, "notes", "deletedAt", "INTEGER");
+  ensureColumn(handle, "bills", "deletedAt", "INTEGER");
   ensureColumn(handle, "notes", "prevTitle", "TEXT");
   ensureColumn(handle, "notes", "prevBody", "TEXT");
   ensureColumn(handle, "notes", "prevSavedAt", "INTEGER");
@@ -354,7 +359,7 @@ function rowToNote(row) {
     title: row.title, body: row.body,
     tags: row.tags ? JSON.parse(row.tags) : [],
     sticky: !!row.sticky, spoiler: !!row.spoiler, dueDate: row.dueDate,
-    createdAt: row.createdAt, updatedAt: row.updatedAt,
+    createdAt: row.createdAt, updatedAt: row.updatedAt, deletedAt: row.deletedAt || null,
     prevTitle: row.prevTitle, prevBody: row.prevBody, prevSavedAt: row.prevSavedAt
   };
 }
@@ -376,6 +381,7 @@ function rowToBill(row) {
     reminderDays: row.reminderDays, paid: !!row.paid,
     paidDates: row.paidDates ? JSON.parse(row.paidDates) : [],
     lastReminderSent: row.lastReminderSent, createdAt: row.createdAt,
+    deletedAt: row.deletedAt || null,
     priority: row.priority || "medium"
   };
 }
@@ -633,16 +639,17 @@ async function deleteCharacter(ownerId, id) {
   const row = db.prepare("SELECT * FROM characters WHERE id = :id").get({ id });
   if (!row || row.ownerId !== ownerId) return false;
   db.prepare("DELETE FROM characters WHERE id = :id").run({ id });
-  // Matches original behavior: only this owner's notes for this character are removed.
-  db.prepare("DELETE FROM notes WHERE characterId = :characterId AND ownerId = :ownerId")
-    .run({ characterId: id, ownerId });
+  // Matches original behavior: only this owner's notes for this character are
+  // removed -- but they go to the trash rather than vanishing outright.
+  db.prepare("UPDATE notes SET deletedAt = :deletedAt WHERE characterId = :characterId AND ownerId = :ownerId AND deletedAt IS NULL")
+    .run({ characterId: id, ownerId, deletedAt: Date.now() });
   return true;
 }
 
 // ---------- notes ----------
 function listNotes(ownerId, characterId) {
   const requestedCharacterId = characterId || null;
-  return db.prepare("SELECT * FROM notes WHERE ownerId = :ownerId").all({ ownerId })
+  return db.prepare("SELECT * FROM notes WHERE ownerId = :ownerId AND deletedAt IS NULL").all({ ownerId })
     .map(rowToNote)
     .filter((n) => {
       if (characterId === "__all__") return true;
@@ -655,7 +662,7 @@ function listNotes(ownerId, characterId) {
 }
 
 function getNote(ownerId, id) {
-  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   return rowToNote(row);
 }
@@ -685,7 +692,7 @@ async function createNote(ownerId, partial) {
 }
 
 async function updateNote(ownerId, id, partial) {
-  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   const note = rowToNote(row);
   const contentChanged =
@@ -718,7 +725,7 @@ async function updateNote(ownerId, id, partial) {
 }
 
 async function restorePreviousVersion(ownerId, id) {
-  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   if (row.prevBody == null && row.prevTitle == null) return null;
   const now = Date.now();
@@ -739,22 +746,27 @@ async function restorePreviousVersion(ownerId, id) {
   return rowToNote({ ...row, ...restored });
 }
 
+// Deletes are soft: the row gets a deletedAt and moves to the trash, where it
+// stays restorable until purged. Any reminders are dropped outright -- a note
+// sitting in the trash shouldn't keep pinging you, and re-adding a reminder
+// after a restore is trivial.
 async function deleteNote(ownerId, id) {
-  const row = db.prepare("SELECT * FROM notes WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM notes WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return false;
-  db.prepare("DELETE FROM notes WHERE id = :id").run({ id });
+  db.prepare("UPDATE notes SET deletedAt = :deletedAt WHERE id = :id").run({ id, deletedAt: Date.now() });
   db.prepare("DELETE FROM reminders WHERE noteId = :noteId").run({ noteId: id });
   return true;
 }
 
 async function clearNotes(ownerId, characterId) {
   const requestedCharacterId = characterId || null;
-  const rows = db.prepare("SELECT id, characterId FROM notes WHERE ownerId = :ownerId").all({ ownerId });
+  const rows = db.prepare("SELECT id, characterId FROM notes WHERE ownerId = :ownerId AND deletedAt IS NULL").all({ ownerId });
   const idsToDelete = rows
     .filter((n) => characterId === "__all__" || (n.characterId || null) === requestedCharacterId)
     .map((n) => n.id);
+  const now = Date.now();
   for (const id of idsToDelete) {
-    db.prepare("DELETE FROM notes WHERE id = :id").run({ id });
+    db.prepare("UPDATE notes SET deletedAt = :deletedAt WHERE id = :id").run({ id, deletedAt: now });
     db.prepare("DELETE FROM reminders WHERE noteId = :noteId").run({ noteId: id });
   }
 }
@@ -844,7 +856,7 @@ function advanceDueDate(dateStr, frequency) {
 }
 
 function listBills(ownerId) {
-  return db.prepare("SELECT * FROM bills WHERE ownerId = :ownerId").all({ ownerId })
+  return db.prepare("SELECT * FROM bills WHERE ownerId = :ownerId AND deletedAt IS NULL").all({ ownerId })
     .map(rowToBill)
     .sort((a, b) => {
       if (a.dueDate && b.dueDate) {
@@ -859,7 +871,7 @@ function listBills(ownerId) {
 }
 
 function getBill(ownerId, id) {
-  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   return rowToBill(row);
 }
@@ -899,7 +911,7 @@ async function createBill(ownerId, partial) {
 }
 
 async function updateBill(ownerId, id, partial) {
-  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   const bill = rowToBill(row);
   // "paid" is intentionally excluded -- it's only mutated via markBillPaid/markBillUnpaid,
@@ -927,7 +939,7 @@ async function updateBill(ownerId, id, partial) {
 }
 
 async function markBillPaid(ownerId, id) {
-  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   const bill = rowToBill(row);
   const today = dateToStr(new Date());
@@ -945,7 +957,7 @@ async function markBillPaid(ownerId, id) {
 }
 
 async function markBillUnpaid(ownerId, id) {
-  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return null;
   db.prepare("UPDATE bills SET paid = 0 WHERE id = :id").run({ id });
   const bill = rowToBill(row);
@@ -954,19 +966,72 @@ async function markBillUnpaid(ownerId, id) {
 }
 
 async function deleteBill(ownerId, id) {
-  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row || row.ownerId !== ownerId) return false;
-  db.prepare("DELETE FROM bills WHERE id = :id").run({ id });
+  db.prepare("UPDATE bills SET deletedAt = :deletedAt WHERE id = :id").run({ id, deletedAt: Date.now() });
   return true;
+}
+
+// ---------- trash ----------
+// Deleted notes and bills stay recoverable for this many days, then a purge
+// job clears them for good.
+const TRASH_RETENTION_DAYS = 30;
+
+function listTrash(ownerId) {
+  const notes = db.prepare("SELECT * FROM notes WHERE ownerId = :ownerId AND deletedAt IS NOT NULL").all({ ownerId })
+    .map(rowToNote)
+    .sort((a, b) => b.deletedAt - a.deletedAt);
+  const bills = db.prepare("SELECT * FROM bills WHERE ownerId = :ownerId AND deletedAt IS NOT NULL").all({ ownerId })
+    .map(rowToBill)
+    .sort((a, b) => b.deletedAt - a.deletedAt);
+  return { notes, bills, retentionDays: TRASH_RETENTION_DAYS };
+}
+
+function trashTable(type) {
+  if (type === "note") return "notes";
+  if (type === "bill") return "bills";
+  return null;
+}
+
+async function restoreFromTrash(ownerId, type, id) {
+  const table = trashTable(type);
+  if (!table) return false;
+  const row = db.prepare(`SELECT * FROM ${table} WHERE id = :id AND deletedAt IS NOT NULL`).get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare(`UPDATE ${table} SET deletedAt = NULL WHERE id = :id`).run({ id });
+  return true;
+}
+
+async function deleteFromTrashPermanently(ownerId, type, id) {
+  const table = trashTable(type);
+  if (!table) return false;
+  const row = db.prepare(`SELECT * FROM ${table} WHERE id = :id AND deletedAt IS NOT NULL`).get({ id });
+  if (!row || row.ownerId !== ownerId) return false;
+  db.prepare(`DELETE FROM ${table} WHERE id = :id`).run({ id });
+  return true;
+}
+
+async function emptyTrash(ownerId) {
+  const notes = db.prepare("DELETE FROM notes WHERE ownerId = :ownerId AND deletedAt IS NOT NULL").run({ ownerId });
+  const bills = db.prepare("DELETE FROM bills WHERE ownerId = :ownerId AND deletedAt IS NOT NULL").run({ ownerId });
+  return { notes: Number(notes.changes), bills: Number(bills.changes) };
+}
+
+// Unscoped by owner -- driven by the server's scheduled purge job.
+async function purgeExpiredTrash(retentionDays = TRASH_RETENTION_DAYS) {
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const notes = db.prepare("DELETE FROM notes WHERE deletedAt IS NOT NULL AND deletedAt <= :cutoff").run({ cutoff });
+  const bills = db.prepare("DELETE FROM bills WHERE deletedAt IS NOT NULL AND deletedAt <= :cutoff").run({ cutoff });
+  return { notes: Number(notes.changes), bills: Number(bills.changes) };
 }
 
 // Internal-only: unscoped by owner, used by the server's bill-reminder job.
 function getAllBills() {
-  return db.prepare("SELECT * FROM bills").all().map(rowToBill);
+  return db.prepare("SELECT * FROM bills WHERE deletedAt IS NULL").all().map(rowToBill);
 }
 
 async function markBillReminderSent(id, dateStr) {
-  const row = db.prepare("SELECT * FROM bills WHERE id = :id").get({ id });
+  const row = db.prepare("SELECT * FROM bills WHERE id = :id AND deletedAt IS NULL").get({ id });
   if (!row) return null;
   db.prepare("UPDATE bills SET lastReminderSent = :lastReminderSent WHERE id = :id").run({ id, lastReminderSent: dateStr });
   const bill = rowToBill(row);
@@ -1031,6 +1096,7 @@ module.exports = {
   listNotes, getNote, createNote, updateNote, deleteNote, clearNotes, restorePreviousVersion,
   listReminders, listRemindersForNote, getDueReminders, createReminder, rescheduleReminder, deleteReminder,
   listBills, getBill, createBill, updateBill, markBillPaid, markBillUnpaid, deleteBill,
+  listTrash, restoreFromTrash, deleteFromTrashPermanently, emptyTrash, purgeExpiredTrash,
   getAllBills, markBillReminderSent,
   listAllowlist, addAllowlistEntry, removeAllowlistEntry,
   listBillsAccess, hasBillsAccess, grantBillsAccess, revokeBillsAccess

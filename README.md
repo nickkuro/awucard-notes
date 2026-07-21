@@ -73,6 +73,7 @@ Each user signs in with Discord and gets their own private notes space. Data liv
 - Removing a local account also deletes everything it owns (notes, characters, reminders, bills)
 
 **Your data**
+- Recently deleted: deleted notes and bills are recoverable for 30 days from Settings, then purged automatically. You can also delete for good or empty the trash yourself
 - Export: download all your notes, characters, reminders, and bills as a single JSON file, any time, from the settings menu
 - Remove: permanently delete everything on your account (notes, characters, reminders, bills) yourself, with a confirmation step, no need to ask an admin
 - Calendar feed: a personal `.ics` link (works for Discord and local accounts alike) to subscribe to your bill and note due dates from Google/Apple Calendar; regenerate it anytime to invalidate an old link
